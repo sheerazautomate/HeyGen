@@ -1,6 +1,6 @@
-name: Deploy site to GitHub Pages
+name: Deploy personal pro studio to GitHub Pages
 
-# Builds the public pilot studio, injects public settings, and bundles examples.
+# Builds the private pro studio (10MB/10min/4K/60fps/high/WebM/MOV) and bundles examples.
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Prepare site bundle
+      - name: Prepare personal pro site bundle
         run: python3 scripts/build_site.py
 
       - name: Upload Pages artifact
