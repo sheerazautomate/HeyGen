@@ -1,0 +1,294 @@
+name: Render HyperFrames video
+
+# Renders a HyperFrames HTML composition to video and publishes it as a
+# GitHub Release (tag prefix `video-`), which the GitHub Pages site lists
+# in its Videos gallery.
+#
+# Triggers:
+#   • repository_dispatch (type: render-video) — sent by the GitHub Pages site.
+#     client_payload.blob_sha points at a git blob holding the composition HTML;
+#     client_payload.render_key lets the site match this run.
+#   • workflow_dispatch — manual/CLI renders of compositions already in the repo.
+
+on:
+  repository_dispatch:
+    types: [render-video]
+  workflow_dispatch:
+    inputs:
+      composition_path:
+        description: "Path (in this repo) to the composition HTML"
+        required: true
+        default: "examples/product-launch.html"
+      title:
+        description: "Video title (used for the release name)"
+        required: true
+        default: "Manual render"
+      fps:
+        description: "Frames per second (1–240)"
+        required: false
+        default: "30"
+      quality:
+        description: "draft | standard | high"
+        required: false
+        default: "standard"
+        type: choice
+        options:
+          - draft
+          - standard
+          - high
+      format:
+        description: "mp4 | webm | mov (webm/mov carry alpha)"
+        required: false
+        default: "mp4"
+        type: choice
+        options:
+          - mp4
+          - webm
+          - mov
+      resolution:
+        description: "1080p | 4k"
+        required: false
+        default: "1080p"
+        type: choice
+        options:
+          - "1080p"
+          - "4k"
+      aspect_ratio:
+        description: "Aspect ratio (HeyGen cloud engine only)"
+        required: false
+        default: "16:9"
+        type: choice
+        options:
+          - "16:9"
+          - "9:16"
+          - "1:1"
+      engine:
+        description: "auto | heygen-cloud | local"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - heygen-cloud
+          - local
+      variables_json:
+        description: "Optional JSON object of composition variables"
+        required: false
+        default: ""
+      lint:
+        description: "Run `hyperframes lint` before rendering"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+# The site matches Actions runs by display title, so keep render_key in here.
+run-name: >-
+  🎬 ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.title || inputs.title }} · ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.render_key || 'manual' }}
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+      HYPERFRAMES_NO_TELEMETRY: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve composition + parameters
+        id: prep
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/prepare_composition.py build/project
+
+      - name: Set up Node 22 (hyperframes tooling)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Lint composition (advisory)
+        if: >-
+          ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.lint != 'false') ||
+              (github.event_name == 'workflow_dispatch' && inputs.lint == 'true') }}
+        run: |
+          npx -y hyperframes lint build/project --json || {
+            echo "::warning::hyperframes lint reported issues — rendering anyway (lint is advisory)."
+          }
+
+      - name: Resolve render engine
+        id: engine
+        run: |
+          set -euo pipefail
+          WANT="${{ steps.prep.outputs.engine }}"
+          if [ -n "$HEYGEN_API_KEY" ]; then HAS_KEY=true; else HAS_KEY=false; fi
+          case "$WANT" in
+            heygen-cloud)
+              if [ "$HAS_KEY" = "false" ]; then
+                echo "::error::engine=heygen-cloud requested but the HEYGEN_API_KEY secret is not set. Add it under Settings → Secrets and variables → Actions, or pick engine=auto/local."
+                exit 1
+              fi
+              ENGINE=heygen-cloud ;;
+            local) ENGINE=local ;;
+            *)  # auto: prefer HeyGen cloud when a key is available
+              if [ "$HAS_KEY" = "true" ]; then ENGINE=heygen-cloud; else ENGINE=local; fi ;;
+          esac
+          echo "engine=$ENGINE" >> "$GITHUB_OUTPUT"
+          echo "🖨️ Engine: $ENGINE (requested: $WANT, HeyGen API key present: $HAS_KEY)"
+
+      # ---- Engine A: HeyGen Cloud Rendering API -----------------------------
+      - name: Render with HeyGen cloud
+        id: cloud
+        if: ${{ steps.engine.outputs.engine == 'heygen-cloud' }}
+        env:
+          TITLE: ${{ steps.prep.outputs.title }}
+          VARS_JSON: ${{ steps.prep.outputs.variables_json }}
+        run: |
+          python3 scripts/cloud_render.py \
+            --project-dir build/project \
+            --composition index.html \
+            --output "out/video.${{ steps.prep.outputs.format }}" \
+            --thumbnail-output out/thumbnail.jpg \
+            --output-props "$GITHUB_OUTPUT" \
+            --title "$TITLE" \
+            --fps ${{ steps.prep.outputs.fps }} \
+            --quality ${{ steps.prep.outputs.quality }} \
+            --format ${{ steps.prep.outputs.format }} \
+            --resolution ${{ steps.prep.outputs.resolution }} \
+            --aspect-ratio ${{ steps.prep.outputs.aspect_ratio }} \
+            --variables "$VARS_JSON" \
+            --timeout-seconds 1800
+
+      # ---- Engine B: render in the runner (open-source hyperframes CLI) -----
+      - name: Render locally in the runner
+        if: ${{ steps.engine.outputs.engine == 'local' }}
+        env:
+          FMT: ${{ steps.prep.outputs.format }}
+          FPS: ${{ steps.prep.outputs.fps }}
+          QUALITY: ${{ steps.prep.outputs.quality }}
+          RES: ${{ steps.prep.outputs.resolution }}
+          VARS_JSON: ${{ steps.prep.outputs.variables_json }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          ARGS=(render build/project
+                --output "out/video.$FMT"
+                --fps "$FPS"
+                --quality "$QUALITY"
+                --format "$FMT")
+          if [ "$RES" = "4k" ]; then ARGS+=(--resolution 4k); fi
+          if [ -n "$VARS_JSON" ]; then ARGS+=(--variables "$VARS_JSON"); fi
+          npx -y hyperframes "${ARGS[@]}"
+          echo "video_path=out/video.$FMT" >> "$GITHUB_OUTPUT"
+
+      - name: Extract thumbnail (local engine)
+        if: ${{ steps.engine.outputs.engine == 'local' }}
+        env:
+          FMT: ${{ steps.prep.outputs.format }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          if [ -f "out/video.$FMT" ]; then
+            ffmpeg -y -loglevel error -i "out/video.$FMT" -frames:v 1 -q:v 3 out/thumbnail.jpg || {
+              echo "::warning::ffmpeg could not extract a thumbnail."
+              rm -f out/thumbnail.jpg
+            }
+          fi
+
+      - name: Publish GitHub release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.prep.outputs.title }}
+          KEY: ${{ steps.prep.outputs.render_key }}
+          ENGINE: ${{ steps.engine.outputs.engine }}
+          FMT: ${{ steps.prep.outputs.format }}
+          FPS: ${{ steps.prep.outputs.fps }}
+          QUALITY: ${{ steps.prep.outputs.quality }}
+          RES: ${{ steps.prep.outputs.resolution }}
+          ASPECT: ${{ steps.prep.outputs.aspect_ratio }}
+          VARS_JSON: ${{ steps.prep.outputs.variables_json }}
+          SOURCE: ${{ steps.prep.outputs.source }}
+          RENDER_ID: ${{ steps.cloud.outputs.heygen_render_id }}
+          DURATION: ${{ steps.cloud.outputs.duration_seconds }}
+        run: |
+          set -euo pipefail
+          TAG="video-${GITHUB_RUN_NUMBER}-${KEY}"
+          VIDEO="out/video.$FMT"
+          [ -f "$VIDEO" ] || { echo "::error::rendered video $VIDEO not found"; exit 1; }
+
+          python3 - <<'PY' > out/notes.md
+          import os
+          size = os.path.getsize(f"out/video.{os.environ['FMT']}") / (1024*1024)
+          rows = [
+              ("Engine", os.environ["ENGINE"]),
+              ("Format / FPS", f"{os.environ['FMT']} @ {os.environ['FPS']} fps"),
+              ("Quality", os.environ["QUALITY"]),
+              ("Resolution / aspect", f"{os.environ['RES']} · {os.environ['ASPECT']}"),
+              ("Size", f"{size:.1f} MiB"),
+              ("Composition source", os.environ["SOURCE"]),
+          ]
+          if os.environ.get("RENDER_ID"):
+              rows.append(("HeyGen render_id", os.environ["RENDER_ID"]))
+          if os.environ.get("DURATION"):
+              rows.append(("Duration", f"{os.environ['DURATION']} s"))
+          if os.environ.get("VARS_JSON"):
+              rows.append(("Variables", "`" + os.environ["VARS_JSON"] + "`"))
+          table = "\n".join(f"| {k} | {v} |" for k, v in rows)
+          run_url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          print("## 🎬 Render details\n")
+          print("| Setting | Value |")
+          print("| --- | --- |")
+          print(table)
+          print(f"\nRender key: `{os.environ['KEY']}`\n")
+          print(f"Triggered via workflow run: {run_url}")
+          print("\n---\n<sub>Built with HeyGen HyperFrames + GitHub Actions. Attach more assets by editing the composition HTML and re-rendering.</sub>")
+          PY
+
+          ASSETS=("$VIDEO#video.$FMT" "build/project/index.html#script.html")
+          if [ -f out/thumbnail.jpg ]; then ASSETS+=("out/thumbnail.jpg#thumbnail.jpg"); fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::release $TAG already exists — uploading assets to it."
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            URL=$(gh release view "$TAG" --json url -q .url)
+          else
+            URL=$(gh release create "$TAG" "${ASSETS[@]}" --title "$TITLE" --notes-file out/notes.md)
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "🏷️ Release: $URL"
+
+      - name: Upload render artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperframes-render-${{ steps.prep.outputs.render_key }}
+          path: |
+            out/video.*
+            out/thumbnail.jpg
+            build/project/index.html
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Job summary
+        if: success()
+        env:
+          TITLE: ${{ steps.prep.outputs.title }}
+          ENGINE: ${{ steps.engine.outputs.engine }}
+          REL_URL: ${{ steps.release.outputs.url }}
+          REL_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          {
+            echo "## ✅ Video rendered"
+            echo ""
+            echo "- **Title:** $TITLE"
+            echo "- **Engine:** $ENGINE"
+            echo "- **Release:** $REL_URL"
+            echo "- **Tag:** \`$REL_TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
