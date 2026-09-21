@@ -355,7 +355,19 @@
       track.blobSha = blob.sha;
 
       // 2 — dispatch the workflow
+      // NOTE: GitHub caps client_payload at 10 properties, so all render
+      // settings travel packed inside one `settings_json` string.
       setStep("dispatch", "active");
+      const settings = {
+        engine: s.engine,
+        format: s.format,
+        quality: s.quality,
+        resolution: s.resolution,
+        aspect_ratio: s.aspect,
+        fps: s.fps,
+        variables_json: s.vars,
+        lint: String(s.lint),
+      };
       await gh(`/repos/${repoPath()}/dispatches`, {
         method: "POST",
         body: {
@@ -364,14 +376,7 @@
             blob_sha: blob.sha,
             render_key: key,
             title,
-            engine: s.engine,
-            format: s.format,
-            quality: s.quality,
-            resolution: s.resolution,
-            aspect_ratio: s.aspect,
-            fps: s.fps,
-            variables_json: s.vars,
-            lint: String(s.lint),
+            settings_json: JSON.stringify(settings),
           },
         },
       });

@@ -85,6 +85,19 @@ curl -X POST -H "Authorization: Bearer $GH_PAT" \
 
 ### `client_payload` reference
 
+GitHub caps `client_payload` at **10 properties**, so the site packs all render settings into a single
+`settings_json` string. Individual fields are still accepted for hand-rolled dispatches and
+`workflow_dispatch` inputs:
+
+| Field                        | Default     | Notes                                                        |
+| ---------------------------- | ----------- | ------------------------------------------------------------ |
+| `blob_sha`                   | *required*  | Git blob SHA of the composition HTML (`encoding: "utf-8"`)   |
+| `render_key`                 | *required*  | Unique short key; used in the run title, tag, and release    |
+| `title`                      | `HyperFrames render` | Release + render title (≤180 chars)                 |
+| `settings_json`              | *(empty)*   | JSON string with the settings below (one payload property)   |
+
+Settings (inside `settings_json`, or as individual `client_payload` / `workflow_dispatch` fields):
+
 | Field            | Default     | Notes                                                        |
 | ---------------- | ----------- | ------------------------------------------------------------ |
 | `blob_sha`       | *required*  | Git blob SHA of the composition HTML (`encoding: "utf-8"`)   |
