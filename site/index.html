@@ -3,376 +3,408 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HyperFrames Studio → GitHub Actions</title>
     <meta
       name="description"
-      content="Paste a HeyGen HyperFrames composition, trigger a GitHub Actions render, and get your video as a GitHub Release."
+      content="Turn your HyperFrames HTML into a video. Upload a composition, submit with GitHub, and watch your finished video here."
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com; media-src https://github.com https://*.githubusercontent.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
+    <title>HyperFrames Studio — From script to screen</title>
     <link rel="stylesheet" href="style.css" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🎬%3C/text%3E%3C/svg%3E"
-    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <script src="config.js" defer></script>
+    <script src="app.js" type="module"></script>
   </head>
   <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand" href="#composer" data-tab="composer">
-          <span class="brand-mark">▶</span>
-          <span class="brand-text">
-            <strong>HyperFrames</strong> → Actions
-            <small>HTML in&nbsp;· video out, via GitHub</small>
-          </span>
-        </a>
-        <nav class="tabs" role="tablist">
-          <a href="#composer" class="tab active" data-tab="composer" role="tab">Composer</a>
-          <a href="#videos" class="tab" data-tab="videos" role="tab">Videos <span id="videos-count" class="pill" hidden></span></a>
-          <a href="#guide" class="tab" data-tab="guide" role="tab">Guide</a>
-        </nav>
-        <div class="topbar-right">
-          <span id="repo-chip" class="repo-chip" title="Active repository">
-            <span class="dot"></span><span id="repo-chip-text">not configured</span>
-          </span>
-          <a id="repo-link" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" hidden>Open repo ↗</a>
-        </div>
-      </div>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="header">
+      <a class="brand" href="#create" aria-label="HyperFrames Studio home"
+        ><span class="brand-icon">h<span>f</span></span
+        ><span>HyperFrames<span class="brand-light"> / studio</span></span></a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#create" data-view="create" class="active">Create a video</a>
+        <a href="#gallery" data-view="gallery">Public gallery</a>
+        <a href="#track" data-view="track">Track a request</a>
+      </nav>
+      <span class="pilot-badge"><i></i> Small, free pilot</span>
     </header>
-
-    <main>
-      <!-- ============================================================ -->
-      <!-- COMPOSER                                                     -->
-      <!-- ============================================================ -->
-      <section id="panel-composer" class="panel active">
-        <div class="flow-strip">
-          <span>Paste <code>script.html</code></span>
-          <span class="arrow">→</span>
-          <span>git blob + <code>repository_dispatch</code></span>
-          <span class="arrow">→</span>
-          <span>GitHub Actions renders</span>
-          <span class="arrow">→</span>
-          <span>video published as a <strong>Release</strong></span>
-          <span class="arrow">→</span>
-          <span>watch it in <a href="#videos" data-tab="videos">Videos</a></span>
-        </div>
-
-        <div class="grid-composer">
-          <!-- ------------------------------------------------ connection -->
-          <section class="card" id="card-connection">
-            <header class="card-head">
-              <h2><span class="step-num">1</span> GitHub connection</h2>
-              <span id="conn-status" class="chip chip-warn">not connected</span>
-            </header>
-            <div class="card-body">
-              <div class="row two">
-                <label>
-                  <span>Owner</span>
-                  <input id="in-owner" type="text" placeholder="your-org" autocomplete="off" spellcheck="false" />
-                </label>
-                <label>
-                  <span>Repository</span>
-                  <input id="in-repo" type="text" placeholder="HeyGen" autocomplete="off" spellcheck="false" />
-                </label>
-              </div>
-              <label class="stack">
-                <span>Personal access token <em class="req">required to trigger renders</em></span>
-                <input id="in-pat" type="password" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false" />
-              </label>
-              <div class="row between wrap">
-                <label class="check">
-                  <input id="in-remember" type="checkbox" />
-                  <span>Remember on this device <small>(else session only)</small></span>
-                </label>
-                <div class="row gap">
-                  <button id="btn-verify" class="btn btn-ghost btn-sm">Verify</button>
-                  <button id="btn-forget" class="btn btn-ghost btn-sm" hidden>Forget token</button>
-                </div>
-              </div>
-              <p id="conn-msg" class="note" hidden></p>
-              <details class="help">
-                <summary>How do I create a token?</summary>
-                <ol>
-                  <li>
-                    Open
-                    <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener"
-                      >Settings → Developer settings → Fine-grained tokens</a
-                    >.
-                  </li>
-                  <li>
-                    Repository access: <strong>only this repo</strong>. Permissions:
-                    <strong>Contents → Read and write</strong> (creates the blob + dispatch) and
-                    <strong>Actions → Read-only</strong> (lets this page show run status).
-                  </li>
-                  <li>Classic tokens also work: the <code>repo</code> scope covers everything.</li>
-                  <li>Paste it above. It is stored only in <em>your browser</em> and sent only to <code>api.github.com</code>.</li>
-                </ol>
-              </details>
+    <main id="main">
+      <section id="view-create" class="view">
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span class="little-line"></span> FROM SCRIPT TO SCREEN
             </div>
-          </section>
-
-          <!-- ----------------------------------------------- composition -->
-          <section class="card" id="card-composition">
-            <header class="card-head">
-              <h2><span class="step-num">2</span> Composition <code class="dim">script.html</code></h2>
-              <div class="row gap">
-                <select id="sel-example" class="select select-sm">
-                  <option value="">Load example…</option>
-                  <option value="examples/product-launch.html">Product launch · 16:9</option>
-                  <option value="examples/vertical-teaser.html">Vertical teaser · 9:16</option>
-                </select>
-                <button id="btn-upload" class="btn btn-ghost btn-sm">Upload .html</button>
-                <input id="in-file" type="file" accept=".html,.htm,text/html" hidden />
-                <button id="btn-preview" class="btn btn-ghost btn-sm">▶ Preview</button>
-              </div>
-            </header>
-            <div class="card-body">
-              <div id="editor-wrap">
-                <textarea
-                  id="in-html"
-                  class="editor"
-                  spellcheck="false"
-                  placeholder="<!doctype html>&#10;<html data-composition-variables='[…]'>…&#10;Paste your HyperFrames composition here, or load an example."
-                ></textarea>
-                <div class="editor-foot">
-                  <span id="html-stats">0 bytes</span>
-                  <span id="html-checks" class="checks-line"></span>
-                </div>
-              </div>
-              <div id="preview-wrap" class="preview-wrap" hidden>
-                <div class="preview-head">
-                  <span>Live preview <small>runs in your browser with the real HyperFrames player</small></span>
-                  <button id="btn-close-preview" class="btn btn-ghost btn-sm">✕</button>
-                </div>
-                <div id="player-box" class="player-box ratio-16-9"></div>
-              </div>
-              <p id="comp-msg" class="note" hidden></p>
+            <h1>You bring the HTML.<br />We’ll bring it <em>to life.</em></h1>
+            <p>
+              Turn your HyperFrames composition into a shareable video.<br
+                class="desktop"
+              />
+              No installs, no commands, no complicated settings.
+            </p>
+            <div class="hero-tags">
+              <span>↗ Browser to video</span><span>✓ No API keys needed</span
+              ><span>◎ Made to share</span>
             </div>
-          </section>
-
-          <!-- -------------------------------------------------- settings -->
-          <section class="card" id="card-settings">
-            <header class="card-head">
-              <h2><span class="step-num">3</span> Render settings</h2>
-              <a class="chip chip-info" href="#guide" data-tab="guide">engines &amp; secrets →</a>
-            </header>
-            <div class="card-body">
-              <label class="stack">
-                <span>Video title</span>
-                <input id="in-title" type="text" placeholder="Product launch teaser" maxlength="180" />
-              </label>
-              <div class="row wrap">
-                <label>
-                  <span>Engine</span>
-                  <select id="in-engine" class="select">
-                    <option value="auto">Auto (cloud if HEYGEN_API_KEY is set)</option>
-                    <option value="heygen-cloud">HeyGen cloud rendering</option>
-                    <option value="local">Render in the Actions runner</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Format</span>
-                  <select id="in-format" class="select">
-                    <option value="mp4">mp4</option>
-                    <option value="webm">webm (alpha)</option>
-                    <option value="mov">mov (alpha)</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Quality</span>
-                  <select id="in-quality" class="select">
-                    <option value="draft">draft (fast)</option>
-                    <option value="standard" selected>standard</option>
-                    <option value="high">high</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Resolution</span>
-                  <select id="in-resolution" class="select">
-                    <option value="1080p">1080p</option>
-                    <option value="4k">4k</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Aspect ratio <small>(cloud)</small></span>
-                  <select id="in-aspect" class="select">
-                    <option value="16:9">16:9</option>
-                    <option value="9:16">9:16</option>
-                    <option value="1:1">1:1</option>
-                  </select>
-                </label>
-                <label>
-                  <span>FPS</span>
-                  <input id="in-fps" type="number" min="1" max="240" step="1" value="30" />
-                </label>
-              </div>
-              <details class="help">
-                <summary>Advanced · composition variables (JSON)</summary>
-                <label class="stack">
-                  <span
-                    >Passed to <code>variables</code> at render time — overrides
-                    <code>data-composition-variables</code> defaults.</span
-                  >
-                  <textarea id="in-vars" class="editor editor-sm" spellcheck="false" placeholder='{"headline": "Q3 wins", "product": "ACME"}'></textarea>
-                </label>
-              </details>
-              <label class="check">
-                <input id="in-lint" type="checkbox" checked />
-                <span>Lint with <code>hyperframes lint</code> before rendering</span>
-              </label>
-              <div class="row between wrap">
-                <button id="btn-render" class="btn btn-primary btn-lg">🚀 Render video with GitHub Actions</button>
-                <span id="render-eta" class="dim">~1–6 min typical</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- -------------------------------------------- render progress -->
-          <section class="card card-span" id="card-progress" hidden>
-            <header class="card-head">
-              <h2>Render progress</h2>
-              <span id="run-state" class="chip chip-warn">starting…</span>
-            </header>
-            <div class="card-body">
-              <ol id="progress-steps" class="steps">
-                <li data-step="blob"><span class="bullet"></span>Upload composition as a git blob</li>
-                <li data-step="dispatch"><span class="bullet"></span>Trigger <code>render-video</code> workflow</li>
-                <li data-step="run"><span class="bullet"></span>Locate the Actions run</li>
-                <li data-step="render"><span class="bullet"></span>HyperFrames render</li>
-                <li data-step="release"><span class="bullet"></span>Publish release</li>
-              </ol>
-              <p id="progress-msg" class="note" hidden></p>
-              <div class="row gap wrap" id="progress-links" hidden>
-                <a id="link-run" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener">Watch on Actions ↗</a>
-                <a id="link-release" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" hidden>Open release ↗</a>
-              </div>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <!-- ============================================================ -->
-      <!-- VIDEOS                                                       -->
-      <!-- ============================================================ -->
-      <section id="panel-videos" class="panel">
-        <div class="section-head">
-          <div>
-            <h2>Rendered videos</h2>
-            <p class="dim">GitHub Releases tagged <code>video-*</code> — every render of this repository.</p>
           </div>
-          <button id="btn-refresh" class="btn btn-ghost">↻ Refresh</button>
+          <div class="hero-art" aria-hidden="true">
+            <div class="art-top">
+              <span>YOUR NEXT GREAT VIDEO</span><span>01 / ∞</span>
+            </div>
+            <div class="orb orb-one"></div>
+            <div class="orb orb-two"></div>
+            <div class="art-title">
+              A little code.<br /><i>A lot of possibility.</i>
+            </div>
+            <div class="art-play">▶</div>
+            <div class="art-bottom">
+              <span class="art-file">&lt;/&gt; script.html</span
+              ><span class="art-arrow">⟶</span
+              ><span class="art-file">▷ video.mp4</span>
+            </div>
+            <div class="art-timeline">
+              <span></span><b></b><span></span><span></span>
+            </div>
+          </div>
         </div>
-        <p id="videos-msg" class="note" hidden></p>
-        <div id="videos-grid" class="video-grid"></div>
-        <div id="videos-empty" class="empty" hidden>
-          <div class="empty-art">🎬</div>
-          <h3>No renders yet</h3>
+        <div class="workflow-strip" aria-label="How it works">
+          <div>
+            <span class="step-num">01</span><strong>Add your script</strong
+            ><span>Choose your HTML file</span>
+          </div>
+          <b>→</b>
+          <div>
+            <span class="step-num">02</span><strong>Submit with GitHub</strong
+            ><span>One quick copy-and-paste</span>
+          </div>
+          <b>→</b>
+          <div>
+            <span class="step-num">03</span><strong>Watch it here</strong
+            ><span>Your video, ready to download</span>
+          </div>
+        </div>
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">THE CREATION DESK</span>
+            <h2>Let’s make something move.</h2>
+          </div>
+          <span class="small muted"
+            >A GitHub account + pilot approval are required</span
+          >
+        </div>
+        <div class="workspace">
+          <section class="card upload-card" aria-labelledby="upload-heading">
+            <div class="card-heading">
+              <h3 id="upload-heading">
+                <span class="tiny-step">1</span> Your composition
+              </h3>
+              <span class="chip">HTML → MP4</span>
+            </div>
+            <input id="file" type="file" accept=".html,.htm,text/html" hidden />
+            <button id="dropzone" class="dropzone" type="button">
+              <span class="upload-icon" aria-hidden="true">↑</span>
+              <strong>Drop your script.html here</strong
+              ><span>or <u>browse files</u> to get started</span>
+              <small id="file-limit"
+                >HyperFrames HTML · up to 24 KB · up to 30 seconds</small
+              >
+            </button>
+            <div id="file-summary" class="file-summary" hidden>
+              <span class="file-icon">&lt;/&gt;</span>
+              <div>
+                <strong id="file-name"></strong><small id="file-detail"></small>
+              </div>
+              <button id="remove-file" type="button" class="text-button">
+                Remove
+              </button>
+            </div>
+            <p class="sample-line">
+              Just exploring?
+              <button id="load-example" class="text-button" type="button">
+                Try an example <span aria-hidden="true">↗</span>
+              </button>
+            </p>
+            <label for="title">Give your video a name</label
+            ><input
+              id="title"
+              maxlength="100"
+              placeholder="e.g. My product launch"
+              autocomplete="off"
+            />
+            <p id="file-message" role="status" class="message" hidden></p>
+            <details class="compatibility">
+              <summary>What kind of HTML works?</summary>
+              <p>
+                A single <strong>HyperFrames composition</strong> with declared
+                dimensions, duration, and a timeline—not an ordinary webpage or
+                text script. The pilot renders offline: inline assets and the
+                supported GSAP / HyperFrames runtimes work; external images,
+                fonts, audio, and other scripts do not load. Fonts may look
+                different.
+              </p>
+              <a href="examples/product-launch.html" download="script.html"
+                >Download a sample script</a
+              >
+            </details>
+          </section>
+          <aside class="card settings-card" aria-labelledby="settings-heading">
+            <div class="card-heading">
+              <h3 id="settings-heading">
+                <span class="tiny-step">2</span> Ready for the screen
+              </h3>
+              <span class="small green">Simple by default</span>
+            </div>
+            <dl class="output-settings">
+              <div>
+                <dt>Video format</dt>
+                <dd>MP4 <span class="muted">/ widely supported</span></dd>
+              </div>
+              <div>
+                <dt>Quality</dt>
+                <dd>Standard <span class="muted">· 30 fps</span></dd>
+              </div>
+              <div>
+                <dt>Dimensions</dt>
+                <dd id="dimensions">Matched to your script</dd>
+              </div>
+              <div>
+                <dt>Visibility</dt>
+                <dd><span class="public-dot"></span> Public gallery</dd>
+              </div>
+            </dl>
+            <div class="notice">
+              <span aria-hidden="true">◎</span>
+              <div>
+                <strong>A small pilot, with a little help from GitHub.</strong>
+                <p>
+                  We’ll prepare your request. You’ll paste it into a GitHub form
+                  and submit. Then come back here for your video.
+                </p>
+                <a id="pilot-info" href="#"
+                  >Need pilot access? Ask the owner ↗</a
+                >
+              </div>
+            </div>
+            <label class="consent"
+              ><input id="consent" type="checkbox" /><span
+                >I’m happy for my
+                <strong>script and video to be public</strong>, and I have the
+                rights to share them.</span
+              ></label
+            >
+            <button id="prepare" class="primary" type="button" disabled>
+              Prepare my video <span aria-hidden="true">→</span>
+            </button>
+            <p id="quota-note" class="button-caption">
+              Free pilot · 2 requests per person / day · No payment details
+            </p>
+            <div id="handoff" class="handoff" hidden>
+              <h4>Your request is ready.</h4>
+              <ol>
+                <li>
+                  <button id="copy-request" class="text-button" type="button">
+                    Copy your render request
+                  </button>
+                </li>
+                <li>
+                  <a
+                    id="submit-request"
+                    href="#"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Open the GitHub form ↗</a
+                  >, sign in, paste into <strong>Render request</strong>, accept
+                  public sharing, and click <strong>Create</strong>.
+                </li>
+                <li>
+                  Copy the new issue’s link, then
+                  <a href="#track">track it here →</a>
+                </li>
+              </ol>
+              <p id="copy-message" class="small" role="status"></p>
+              <details>
+                <summary>Can’t copy? Select the request manually</summary>
+                <textarea
+                  id="request-packet"
+                  readonly
+                  aria-label="Render request to copy"
+                  rows="4"
+                  spellcheck="false"
+                ></textarea>
+              </details>
+            </div>
+          </aside>
+        </div>
+        <div class="under-workspace">
+          <span
+            >◈ Your file stays in this browser until you submit it on
+            GitHub.</span
+          ><span>No software. Just your next video.</span>
+        </div>
+        <section class="faq">
+          <div>
+            <span class="eyebrow">GOOD TO KNOW</span>
+            <h2>A simpler way<br />to press play.</h2>
+          </div>
+          <div>
+            <details>
+              <summary>Do I need to know how to code?</summary>
+              <p>
+                No. If someone has given you a compatible script.html, just
+                choose it here and follow the steps. You do need a GitHub
+                account for this GitHub-only pilot.
+              </p>
+            </details>
+            <details>
+              <summary>How long does a video take?</summary>
+              <p>
+                Usually a few minutes after your request is accepted. GitHub
+                queues and renderer setup can add time. Check your request here;
+                you don’t have to keep the page open.
+              </p>
+            </details>
+            <details>
+              <summary>Who can use the pilot?</summary>
+              <p>
+                Anyone can explore the site and gallery. Rendering is limited to
+                accounts approved by the owner. Requests outside the pilot are
+                declined automatically. Daily limits reset at midnight UTC.
+              </p>
+            </details>
+            <details>
+              <summary>Can I delete or keep my video private?</summary>
+              <p>
+                This pilot is public only. The request contains your source
+                HTML, and the video is a public GitHub Release. Don’t include
+                personal information or secrets. Contact the owner to request
+                removal; public copies may remain elsewhere.
+              </p>
+            </details>
+          </div>
+        </section>
+      </section>
+      <section id="view-gallery" class="view" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">THE COMMUNITY SCREEN</div>
+          <h1>Made with a little <em>HTML.</em></h1>
           <p>
-            Head to the <a href="#composer" data-tab="composer">Composer</a>, load an example, and hit
-            <em>Render video</em>. Finished videos land here as GitHub Releases.
+            Finished videos from the studio. Watch, get inspired, or download.
           </p>
         </div>
+        <div class="section-heading">
+          <h2>Public gallery <span id="video-count" class="count"></span></h2>
+          <button id="refresh-gallery" class="secondary" type="button">
+            ↻ Refresh
+          </button>
+        </div>
+        <p id="gallery-message" class="message" role="status" hidden></p>
+        <div id="gallery" class="gallery"></div>
+        <div id="gallery-empty" class="empty" hidden>
+          <span class="empty-icon">▷</span>
+          <h3>The screen is yours.</h3>
+          <p>
+            No published videos yet. The first finished render will appear here.
+          </p>
+          <a class="primary inline" href="#create">Create a video →</a>
+        </div>
+        <button id="more-videos" class="secondary more" type="button" hidden>
+          Load more
+        </button>
+        <p class="small muted">
+          All videos are public. Having trouble playing one? Use its download
+          link to open it in your video player.
+        </p>
       </section>
-
-      <!-- ============================================================ -->
-      <!-- GUIDE                                                        -->
-      <!-- ============================================================ -->
-      <section id="panel-guide" class="panel">
-        <div class="section-head"><h2>Setup guide</h2></div>
-        <div class="guide">
-          <div class="card">
-            <header class="card-head"><h2><span class="step-num">1</span> Enable GitHub Pages</h2></header>
-            <div class="card-body">
-              <p>
-                In your repository: <strong>Settings → Pages</strong> → under <em>Build and deployment</em>, set
-                <strong>Source = GitHub Actions</strong>. Then run
-                <em>Actions → Deploy site to GitHub Pages → Run workflow</em> (it also runs on every push to
-                <code>main</code> that touches <code>site/</code> or <code>examples/</code>).
+      <section id="view-track" class="view" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">FROM REQUEST TO READY</div>
+          <h1>Your video is on <em>its way.</em></h1>
+          <p>Already submitted on GitHub? Bring your request link back here.</p>
+        </div>
+        <div class="tracking-layout">
+          <section class="card tracking-card">
+            <h3>Find your video</h3>
+            <label for="request-link"
+              >GitHub request link or issue number</label
+            >
+            <div class="input-action">
+              <input
+                id="request-link"
+                placeholder="Paste your GitHub issue link"
+                inputmode="url"
+              /><button id="track-request" class="primary" type="button">
+                Find video →
+              </button>
+            </div>
+            <p class="small muted">
+              Copy the address of the issue you created after submitting the
+              form.
+            </p>
+            <p id="track-message" class="message" role="status" hidden></p>
+            <div id="tracking-result" hidden>
+              <div class="tracking-head">
+                <h3 id="tracking-title"></h3>
+                <span id="tracking-status" class="chip"></span>
+              </div>
+              <ol class="progress-steps">
+                <li id="progress-queued">01 <strong>Queued</strong></li>
+                <li id="progress-creating">
+                  02 <strong>Creating video</strong>
+                </li>
+                <li id="progress-ready">03 <strong>Ready</strong></li>
+              </ol>
+              <p id="tracking-detail" aria-live="polite"></p>
+              <div id="tracking-video"></div>
+              <a id="tracking-issue" target="_blank" rel="noopener noreferrer"
+                >Open request on GitHub ↗</a
+              >
+              <p class="small muted">
+                Status refreshes every 90 seconds for up to 25 minutes. Click
+                Find video to check again.
               </p>
             </div>
-          </div>
-          <div class="card">
-            <header class="card-head"><h2><span class="step-num">2</span> Choose a render engine</h2></header>
-            <div class="card-body">
-              <ul class="plain">
-                <li>
-                  <strong>HeyGen cloud</strong> (default when available): add your API key as the repository secret
-                  <code>HEYGEN_API_KEY</code> under <em>Settings → Secrets and variables → Actions</em>. Renders run on
-                  HeyGen's infrastructure via <code>POST /v3/hyperframes/renders</code>. Get a key from the
-                  <a href="https://app.heygen.com/developers/api" target="_blank" rel="noopener">HeyGen API dashboard</a>.
-                </li>
-                <li>
-                  <strong>Runner render</strong> (fallback, free, no key): the workflow renders inside GitHub Actions
-                  with the open-source <code>hyperframes</code> CLI (headless Chrome + FFmpeg on the runner).
-                </li>
-                <li>Engine <strong>auto</strong> = cloud when the secret exists, otherwise runner.</li>
-              </ul>
+          </section>
+          <aside class="card recent-card">
+            <h3>On this browser</h3>
+            <p class="small muted">
+              Recently tracked requests. No account is signed in on this site.
+            </p>
+            <ul id="recent-requests"></ul>
+            <button id="clear-history" class="text-button" type="button">
+              Clear local history
+            </button>
+            <div class="notice">
+              <div>
+                <strong>It’s okay to step away.</strong>
+                <p>
+                  Your render continues on GitHub even if you close this page.
+                  Keep your request link to come back later.
+                </p>
+              </div>
             </div>
-          </div>
-          <div class="card">
-            <header class="card-head"><h2><span class="step-num">3</span> Create a browser token</h2></header>
-            <div class="card-body">
-              <p>
-                The page needs a personal access token to (a) upload your HTML as a git blob and (b) dispatch the
-                <code>render-video</code> workflow. A fine-grained token with
-                <strong>Contents: Read and write</strong> + <strong>Actions: Read-only</strong> on this one repository
-                is the least-privilege choice. Paste it in the Composer tab — it never leaves your browser except to
-                <code>api.github.com</code>.
-              </p>
-            </div>
-          </div>
-          <div class="card">
-            <header class="card-head"><h2>How a render flows</h2></header>
-            <div class="card-body">
-              <pre class="flow">browser (this page)
-  POST /repos/{owner}/{repo}/git/blobs          ← script.html as a git blob
-  POST /repos/{owner}/{repo}/dispatches         ← event: render-video (blob sha + settings)
-        │
-        ▼
-GitHub Actions · “Render HyperFrames video”
-  prepare:  fetch blob → build/project/index.html   (lint: hyperframes lint)
-  render:   A) HeyGen cloud  — zip → POST /v3/hyperframes/renders → poll → download
-            B) runner       — npx hyperframes render (headless Chrome + FFmpeg)
-  publish:  gh release create video-&lt;run&gt;-&lt;key&gt;  (video + thumbnail + script.html)
-        │
-        ▼
-Releases tagged video-*  →  listed &amp; playable right here in the Videos tab</pre>
-            </div>
-          </div>
-          <div class="card">
-            <header class="card-head"><h2>FAQ &amp; troubleshooting</h2></header>
-            <div class="card-body">
-              <dl class="faq">
-                <dt>The render failed — where are the logs?</dt>
-                <dd>
-                  The progress card links to the exact Actions run. Open it, click the <code>render</code> job, and
-                  expand the failed step (usually <code>Render with HeyGen cloud</code> or
-                  <code>Render locally in the runner</code>).
-                </dd>
-                <dt>No HeyGen API key — can I still render?</dt>
-                <dd>Yes. Leave engine on <em>auto</em> or pick <em>Actions runner</em>; the open-source CLI renders in the workflow at no HeyGen cost.</dd>
-                <dt>Preview is blank or the player errors</dt>
-                <dd>Previews use the <code>@hyperframes/player</code> web component from a CDN and need network access to it. Rendering is unaffected — the Actions render loads the same scripts server-side.</dd>
-                <dt>Where does my composition go?</dt>
-                <dd>It is stored as a <em>dangling git blob</em> (not attached to any branch or commit history) and referenced by the workflow run. Nothing is pushed to <code>main</code>.</dd>
-                <dt>Run status shows “can’t read runs”</dt>
-                <dd>Your token lacks <strong>Actions: Read</strong>. Renders still work — use the Actions tab link to watch progress.</dd>
-                <dt>403 rate limit?</dt>
-                <dd>Unauthenticated GitHub API calls are limited to 60/hour. Adding a token raises it to 5,000/hour.</dd>
-              </dl>
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
     </main>
-
-    <footer class="footer">
-      <span>
-        Built with <a href="https://developers.heygen.com/hyperframes" target="_blank" rel="noopener">HeyGen
-        HyperFrames</a> + <a href="https://actions.github.io" target="_blank" rel="noopener">GitHub Actions</a>
-      </span>
-      <span id="foot-repo" class="dim"></span>
+    <footer>
+      <a class="brand" href="#create"
+        ><span class="brand-icon">h<span>f</span></span
+        >HyperFrames<span class="brand-light"> / studio</span></a
+      ><span>HTML in. Possibility out.</span
+      ><a
+        id="repository-link"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Powered by GitHub Actions ↗</a
+      >
     </footer>
-
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <noscript
+      >This studio needs JavaScript. You can still submit through the
+      repository’s Create a video issue form.</noscript
+    >
   </body>
 </html>

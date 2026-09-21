@@ -1,190 +1,208 @@
-# HeyGen HyperFrames → GitHub Actions
+# HyperFrames Studio — a GitHub-only video pilot
 
-A **self-serve video-rendering platform on top of GitHub**: a GitHub Pages site where anyone can paste a
-[HeyGen HyperFrames](https://developers.heygen.com/hyperframes) composition (`script.html`), a GitHub Actions
-workflow that renders it to video, and a gallery that plays every finished render — all without a server.
+A public, non-technical website for turning **HyperFrames-compatible `script.html`** into an MP4.
+People choose their file, submit a guided request using their GitHub account, then watch and download
+finished videos on the same site. **No visitor tokens, repository write access, API keys, or installations.**
 
+## The product choices
+
+- **GitHub-only:** GitHub Pages hosts the studio; Issues accept requests; Actions renders; Releases store videos.
+- **GitHub sign-in:** users authenticate on GitHub's submission page, not inside the studio. Pages cannot
+  securely implement a standalone login/upload backend. The GitHub handoff is intentional and visible.
+- **Public:** requests (including source HTML) and videos are public. Base64 is transport encoding, **not encryption**.
+- **Approved-user pilot:** the website and gallery are open to everyone, but only approved GitHub accounts render.
+- **Free to pilot users:** no billing integration. This is not a promise of unlimited or free infrastructure.
+
+## User journey
+
+1. Open the studio and choose a compatible `.html` file, or click **Try an example**.
+2. Name the video, accept public sharing, and click **Prepare my video**.
+3. Click **Copy your render request** and **Open the GitHub form**.
+4. Sign in to GitHub, paste into **Render request**, check public sharing, and click **Create**.
+5. Copy the resulting issue link into the studio's **Track a request** page.
+6. See **Queued → Creating video → Ready**, or a readable rejection/failure explanation. Watch/download on
+   that page or in the **Public gallery**.
+
+The site never executes uploaded HTML. It only reads metadata and prepares a transport packet. Large
+request packets go through the clipboard, not query strings (which would truncate realistic HTML files).
+A manual-copy fallback works when browser clipboard permission is blocked.
+
+## Owner setup / launch checklist
+
+1. **Merge these changes into the repository's default branch.** Issue workflows and issue forms must
+   exist there; deploying only the Pages site from a feature branch is not enough.
+2. Keep the repository **public**, with **Issues** and **Actions** enabled. Allow the checked-in workflows
+   and the GitHub-maintained actions they use. Organization policy must permit job-scoped `issues: write`
+   and `contents: write` permissions.
+3. In **Settings → Pages**, select **GitHub Actions** as the source. `deploy-pages.yml` builds/deploys on
+   relevant changes to `main`, or can be run manually. The site for this repository is
+   `https://sheerazautomate.github.io/HeyGen/`.
+4. Review [`.github/pilot.json`](.github/pilot.json). Initially **only `sheerazautomate` is approved**.
+   Add the exact GitHub usernames of invited users to `approved_users`.
+5. Wait for **Test studio and pilot** to pass, including its **sandbox-smoke** job. Submit the bundled
+   example from an approved account. Confirm its bot comment, public release, gallery playback, download,
+   and request tracking all work. Try an unapproved account and confirm it is rejected without rendering.
+6. Only then invite the rest of the pilot. Monitor Actions/storage usage and check GitHub's applicable
+   Pages/Actions terms and limits before opening a broadly available rendering service.
+
+**No new repository secrets are needed for the pilot.** It uses short-lived job-scoped `GITHUB_TOKEN`s in
+trusted jobs. The existing `HEYGEN_API_KEY`, if present, is **not** passed to the pilot renderer.
+
+### Pilot limits
+
+| Limit | Initial value |
+| --- | --- |
+| Approved users | `sheerazautomate` only |
+| Requests per user per UTC day | 2 |
+| Requests across approved users per UTC day | 10 |
+| Source HTML | 24 KiB (also bounded by GitHub's form length) |
+| Declared duration | More than 0, up to 30 seconds |
+| Dimensions | Even positive dimensions, max 1920 per side and 2,073,600 total pixels |
+| Output | MP4, standard quality, 30 fps |
+| Render container | 2 CPUs, 4 GiB memory, 512 PIDs, 12-minute execution timeout |
+| Media output | MP4 up to 256 MiB; optional JPEG up to 5 MiB |
+| Intermediate Actions artifacts | 3 days |
+| Published releases | Until the owner removes them |
+
+To avoid editable-request quota bypasses, **all issues created by an approved user that day count against
+admission**, including ordinary, rejected, failed, renamed, edited, and closed issues. Earlier issue numbers
+reserve slots. Edits/reopening do not trigger a new render. Only `issues: opened` does. Limits reset at
+**00:00 UTC**. There are no automatic retries. Administrative policy changes/reruns are trusted operator
+operations, not an immutable billing ledger.
+
+Quotas control **render admission**, not all Actions usage: unapproved submissions still run a cheap gate,
+image builds and status/publishing jobs consume resources, and eligible jobs can run concurrently subject
+to GitHub's concurrency limits. These are not financial spending guarantees. Use GitHub's account-level
+budgets/usage monitoring too. Keep the allowlist small.
+
+Set `enabled` to `false` to pause new admissions; redeploy Pages to update the visible notice. Cancel
+already-running workflows in Actions if needed. The actual duration cap in `scripts/pilot/render.sh` is
+also 30 seconds: keep policy and container limits aligned if changing the pilot size.
+
+## Supported compositions
+
+This is **not** arbitrary-website capture, text-to-video, or an AI avatar generator. Input must be one
+self-contained HyperFrames composition declaring `data-composition-id`, `data-width`, `data-height`, and
+`data-duration`. Two compatible examples are in [`examples/`](examples/).
+
+The pilot runs **offline**. It localizes these exact script sources to package-lock-pinned local files:
+
+- `https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js`
+- `https://cdn.jsdelivr.net/npm/@hyperframes/core/dist/hyperframe.runtime.iife.js`
+- `https://cdn.jsdelivr.net/npm/@hyperframes/core@0.8.58/dist/hyperframe.runtime.iife.js`
+
+The unversioned runtime maps to the bundled HyperFrames 0.8.58 runtime. Inline HTML/CSS/JS and inline data
+assets can work. Other external scripts, fonts, images, audio, and video do not load; remote fonts fall
+back to installed fonts. Relative file references are not uploaded alongside the HTML. Unknown external
+URLs are never fetched by a privileged preparation step. Missing external resources may cause an
+incomplete-looking video or a render failure, so use self-contained inputs.
+
+## Architecture and trust boundaries
+
+```text
+GitHub Pages (no auth tokens)
+  → clipboard request → GitHub Issue form (GitHub authenticates the user)
+  → admit job: approval + quota + consent + metadata checks; snapshot input
+  → render job: offline, non-root, resource-limited Docker container
+  → publish job on a FRESH runner: MP4/JPEG → GitHub Release; update bot comment
+  → Pages: public read-only API → status + inline player + download
 ```
-┌─────────────────────┐   git blob + repository_dispatch   ┌──────────────────────────┐
-│  GitHub Pages site  │ ─────────────────────────────────▶ │  GitHub Actions          │
-│  (composer +        │                                    │  “Render HyperFrames     │
-│   video gallery)    │ ◀───────────────────────────────── │   video” workflow        │
-└─────────────────────┘   Releases tagged video-*         └────────────┬─────────────┘
-        │  watches runs + lists releases                               │
-        │                                                    ┌─────────▼──────────┐
-        └────────────────────────────────────────────────────│  Render engine     │
-             videos play right on the Pages site             │  A) HeyGen cloud   │
-                                                             │  B) runner (CLI)   │
-                                                             └────────────────────┘
-```
 
-## How it works
+- Submitted code does **not** run in the admission or publishing jobs.
+- The container has no network, writable root filesystem, GitHub/HeyGen credentials, repository checkout,
+  Docker socket, host home, or privileged capabilities. Only the input HTML and a dedicated output directory
+  are mounted. Dependencies install before input execution.
+- Runtime stdout is discarded (not interpreted as Actions workflow commands, nor allowed to fill logs).
+- Only fixed-name, bounded, regular MP4/JPEG files are copied out. Symlinks/FIFOs/invalid signatures are
+  rejected. No renderer-supplied manifest, path, command, tag, or status output is trusted by the publisher.
+- Source metadata crosses from the trusted gate to the publisher separately from renderer output.
+- The site uses text nodes for titles/messages, validates media URLs, trusts status only from
+  `github-actions[bot]`, and has a restrictive CSP. There is deliberately no live HTML preview.
+- Public status uses one bot comment updated in place. Browser tracking polls every 90 seconds for up to
+  25 minutes to conserve the unauthenticated GitHub API allowance. Recent issue numbers stay only in local
+  browser storage. No password/token is stored; the previous UI's stored `hfgh_token` is cleared.
 
-1. **Compose** — paste or upload your HyperFrames composition (plain HTML/CSS/JS with `data-*` timing
-   attributes and a GSAP timeline). Preview it live in the browser with the real `@hyperframes/player`.
-2. **Dispatch** — the site uploads the HTML as a *git blob* (`POST /repos/{owner}/{repo}/git/blobs`) and fires
-   a `repository_dispatch` (`type: render-video`) with the blob SHA + render settings. The token never leaves
-   the browser except to talk to `api.github.com`.
-3. **Render** — the `Render HyperFrames video` workflow fetches the blob and renders it:
-   * **Engine A — HeyGen cloud** (default when the `HEYGEN_API_KEY` secret exists): zips the project, submits it
-     inline to `POST /v3/hyperframes/renders`, polls, downloads the MP4/WebM/MOV + thumbnail.
-   * **Engine B — runner render** (free fallback): renders inside the Actions runner with the open-source
-     `hyperframes` CLI (headless Chrome + FFmpeg).
-4. **Publish** — the workflow creates a GitHub Release tagged `video-<run>-<key>` with the video, a thumbnail,
-   and the source `script.html`.
-5. **Watch** — the site's **Videos** tab lists every `video-*` release and plays the videos inline. The
-   progress card tracks your run live (matched via a unique render key in the run title).
+**Residual risk:** Docker is a containment layer, not a guarantee against browser/kernel/container escapes.
+Metadata validation does not make JavaScript safe; execution limits are enforced by the container/timeouts.
+This design is for a small approved pilot on disposable **GitHub-hosted runners**, never a self-hosted
+runner holding credentials or other tenants' data. Review/pin infrastructure image/action digests and
+monitor dependency updates before expanding. Malformed media is not a full content-safety validation.
 
-## Quick start
+## Local development and tests
 
-> Requirements: this repository, a GitHub account, ~3 minutes of clicking. No server, no database.
-
-1. **Enable Pages** — `Settings → Pages → Build and deployment → Source: GitHub Actions`.
-2. **Deploy the site** — run *Actions → Deploy site to GitHub Pages → Run workflow*. The site lands at
-   `https://<owner>.github.io/<repo>/` and auto-knows its repo.
-3. **(Optional) HeyGen cloud rendering** — add your API key as the repository secret
-   `Settings → Secrets and variables → Actions → HEYGEN_API_KEY`
-   (get one at the [HeyGen API dashboard](https://app.heygen.com/developers/api)). Without a key, renders fall
-   back to the runner engine automatically.
-4. **Create a browser token** — a fine-grained PAT for *this repo only* with
-   **Contents: Read and write** + **Actions: Read-only**
-   ([create it here](https://github.com/settings/personal-access-tokens/new); the classic `repo` scope also works).
-   Paste it into the site's Composer tab — it is stored only in your browser's local/session storage.
-5. **Render something** — Composer → *Load example* → **Render video**. ~1–6 minutes later your video is a
-   GitHub Release and plays in the Videos tab.
-
-## Triggering renders without the site
-
-Any `repository_dispatch` with `event_type: render-video` works, and compositions already in the repo can be
-rendered straight from the Actions tab or CLI:
+Python 3.11+ serves/builds the site; Node 22 is used for tests and rendering.
 
 ```bash
-# Render a file that lives in the repo (uses the workflow_dispatch inputs)
-gh workflow run render.yml \
-  -f composition_path=examples/product-launch.html \
-  -f title="Launch teaser" -f engine=local -f quality=high
+python3 scripts/build_site.py
+python3 -m http.server 4173 --bind 0.0.0.0 --directory build/site
+# Open http://localhost:4173 (or the forwarded preview URL).
 
-# Fully programmatic: create a blob, then dispatch
-SHA=$(curl -s -X POST -H "Authorization: Bearer $GH_PAT" \
-  https://api.github.com/repos/OWNER/REPO/git/blobs \
-  -d '{"content":"'"$(base64 -w0 script.html | base64 -d)"'","encoding":"utf-8"}' | jq -r .sha)
-# … or build the JSON properly with jq:
-jq -n --rawfile html script.html '{content:$html,encoding:"utf-8"}' |
-  curl -s -X POST -H "Authorization: Bearer $GH_PAT" \
-    https://api.github.com/repos/OWNER/REPO/git/blobs -d @- | jq -r .sha
-
-curl -X POST -H "Authorization: Bearer $GH_PAT" \
-  https://api.github.com/repos/OWNER/REPO/dispatches -d '{
-    "event_type":"render-video",
-    "client_payload":{
-      "blob_sha":"'"$SHA"'","render_key":"demo0001","title":"My video",
-      "engine":"auto","format":"mp4","quality":"standard","resolution":"1080p",
-      "aspect_ratio":"16:9","fps":30,"variables_json":"","lint":"true"
-    }}'
+npm ci
+npm test                           # Python gate/security tests + JS helper tests
+npx playwright install --with-deps chromium
+npm run test:browser                # Mocked GitHub API, real browser interaction
 ```
 
-### `client_payload` reference
+The build bundles examples and injects public repo/limit configuration. To build for another repository,
+set `GITHUB_REPOSITORY=owner/repo`. Do not serve the repository root as the public website.
 
-GitHub caps `client_payload` at **10 properties**, so the site packs all render settings into a single
-`settings_json` string. Individual fields are still accepted for hand-rolled dispatches and
-`workflow_dispatch` inputs:
+For a real isolated-render smoke test on a Linux Docker host:
 
-| Field                        | Default     | Notes                                                        |
-| ---------------------------- | ----------- | ------------------------------------------------------------ |
-| `blob_sha`                   | *required*  | Git blob SHA of the composition HTML (`encoding: "utf-8"`)   |
-| `render_key`                 | *required*  | Unique short key; used in the run title, tag, and release    |
-| `title`                      | `HyperFrames render` | Release + render title (≤180 chars)                 |
-| `settings_json`              | *(empty)*   | JSON string with the settings below (one payload property)   |
-
-Settings (inside `settings_json`, or as individual `client_payload` / `workflow_dispatch` fields):
-
-| Field            | Default     | Notes                                                        |
-| ---------------- | ----------- | ------------------------------------------------------------ |
-| `blob_sha`       | *required*  | Git blob SHA of the composition HTML (`encoding: "utf-8"`)   |
-| `render_key`     | *required*  | Unique short key; used in the run title, tag, and release    |
-| `title`          | `HyperFrames render` | Release + render title (≤180 chars)                 |
-| `engine`         | `auto`      | `auto` \| `heygen-cloud` \| `local`                          |
-| `format`         | `mp4`       | `mp4` \| `webm` \| `mov` (webm/mov carry alpha)              |
-| `quality`        | `standard`  | `draft` \| `standard` \| `high`                              |
-| `resolution`     | `1080p`     | `1080p` \| `4k`                                              |
-| `aspect_ratio`   | `16:9`      | `16:9` \| `9:16` \| `1:1` (cloud engine)                     |
-| `fps`            | `30`        | 1–240                                                        |
-| `variables_json` | *(empty)*   | JSON object overriding `data-composition-variables`          |
-| `lint`           | `true`      | Run `hyperframes lint` first (advisory, never blocks)        |
-
-## Writing compositions
-
-A composition is a **self-contained HTML page** — the whole point of HyperFrames. The essentials
-(full docs: [developers.heygen.com/hyperframes](https://developers.heygen.com/hyperframes)):
-
-```html
-<div id="main"
-     data-composition-id="main" data-width="1920" data-height="1080"
-     data-start="0" data-duration="16">
-  <div class="scene clip" id="s1" data-start="0"  data-duration="4" data-track-index="0">…</div>
-  <div class="scene clip" id="s2" data-start="4"  data-duration="4" data-track-index="0"
-       style="visibility:hidden">…</div>
-</div>
-<script>
-  window.__timelines = window.__timelines || {};
-  var tl = gsap.timeline({ paused: true });
-  tl.set("#s1", { autoAlpha: 0 }, 4);
-  tl.set("#s2", { autoAlpha: 1 }, 4);
-  /* tl.from(...) entrance + mid-scene tweens */
-  window.__timelines["main"] = tl;
-</script>
+```bash
+docker build -t pilot-renderer scripts/pilot
+mkdir -p build/request
+cp tests/fixtures/smoke.html build/request/index.html
+bash scripts/pilot/run_sandbox.sh
+# Outputs: build/media/video.mp4 and thumbnail.jpg
 ```
 
-* Load `gsap` and the `@hyperframes/core` runtime from a CDN (see [`examples/`](examples/)).
-* Parameterize with `data-composition-variables` on `<html>` and read them via
-  `window.__hyperframes.getVariables()` — override per render with `variables_json`.
-* Keep animations deterministic: no `Date.now()`, no unseeded `Math.random()`, no `repeat: -1`.
-* Validate locally: `npx hyperframes lint`, preview with `npx hyperframes preview`.
+The CI workflow runs both the browser suite and this Docker test. Local browser suites use mocked GitHub
+responses; they do not create issues, dispatch workflows, publish releases, or prove live GitHub permissions.
+A live end-to-end request still needs the launch checklist above.
 
-Two ready-to-render examples ship in [`examples/`](examples/) — a 16:9 product launch and a 9:16 vertical
-teaser, both parameterized with variables.
+## Operations and troubleshooting
 
-## Repository layout
+- **Not approved:** add the username to `approved_users` on the default branch; ask for a new request.
+- **Limit reached:** wait until the next UTC day. Editing/closing a request does not refund its slot.
+- **Waiting forever:** check Actions is enabled, the workflow exists on the default branch, and repository
+  policies permit its token permissions. Cancellation or an admission infrastructure failure can prevent
+  the status comment being posted. Open the issue/Actions page; no pretend progress percentage is shown.
+- **Failed rendering:** verify a self-contained composition, offline-supported scripts, valid dimensions,
+  and limits. Reproduce trusted test content in the sandbox. Do not run arbitrary HTML on a privileged
+  host to debug it. Container logs are intentionally not published.
+- **API limit/network problem:** tracking stops with an explanation instead of retrying indefinitely. Use
+  the issue directly or try again later. Public API quotas are shared by IP, so large audiences need a backend.
+- **Video missing:** check the publishing job and `video-pilot-<issue-number>` release. A successful video
+  may exist even if a subsequent status API call failed; check the public gallery.
+- **Removal:** delete the release/assets and associated tag, intermediate workflow artifacts as needed,
+  and the request containing the HTML. Public copies/downloads cannot be recalled. Ask the owner for removal;
+  there is no private mode or automated retention/deletion portal in this pilot.
+- **Live deployment:** feature-branch files/preview do not change the public Pages site or default-branch
+  workflows until merged and deployed. This implementation does not auto-push or mutate repository settings.
 
-```
-site/                     GitHub Pages app (composer, live preview, video gallery)
-  index.html · app.js · style.css · config.js
-examples/                 Sample compositions (bundled into the Pages site at deploy)
-scripts/
-  prepare_composition.py  Workflow step: resolve blob/file → project + validated params
-  cloud_render.py         HeyGen cloud pipeline: zip → submit → poll → download (stdlib only)
+## Repository map
+
+```text
+site/                         Public studio, upload handoff, tracker, gallery
+examples/                     Example HyperFrames compositions
+.github/ISSUE_TEMPLATE/        Guided Create a video form
+.github/pilot.json            Approved accounts, quotas, input limits
 .github/workflows/
-  render.yml              repository_dispatch + workflow_dispatch renderer → GitHub Release
-  deploy-pages.yml        Publishes site/ to GitHub Pages (injects repo coordinates)
+  pilot-render.yml            Gate → isolated render → publish → status
+  deploy-pages.yml            Build and publish Pages
+  test.yml                    Unit/browser tests and Docker smoke test
+  render.yml                  Legacy owner-only manual/cloud renderer
+scripts/
+  build_site.py               Static site builder
+  pilot/                      Gate/client, sandbox image/runner, output checks, publisher
+  prepare_composition.py      Legacy manual renderer helper
+  cloud_render.py             Legacy owner-operated cloud helper
+tests/                        Unit, browser, and trusted render fixture
+docs/legacy-rendering.md       Previous technical/admin workflow documentation
 ```
 
-## Configuration reference
-
-| Setting            | Where                | Effect                                                        |
-| ------------------ | -------------------- | ------------------------------------------------------------- |
-| `HEYGEN_API_KEY`   | Actions secret       | Enables the HeyGen cloud engine; without it renders use the runner |
-| Pages source       | Settings → Pages     | Must be **GitHub Actions** for `deploy-pages.yml` to publish  |
-| Browser PAT        | site Composer tab    | Needs Contents RW (+ Actions RO for live run status)          |
-| `site/config.js`   | generated at deploy  | Defaults for owner/repo on the Pages site (editable in the UI) |
-
-## Security notes
-
-* The browser token is fine-grained and stored **only** in your browser (choose session-only to skip
-  persistent storage). It is sent exclusively to `api.github.com`.
-* Compositions are stored as dangling git blobs (not attached to any branch) and only referenced by the
-  workflow run — nothing is pushed to `main`.
-* Anyone who can dispatch the workflow can spend your HeyGen credits / runner minutes — share the PAT and
-  repository write access accordingly. For public "anyone can render" setups, put the site on a dedicated
-  repository with spending caps in place.
-* Rendered videos and releases are as public as the repository itself.
-
-## Troubleshooting
-
-| Symptom | Fix |
-| --- | --- |
-| `engine=heygen-cloud requested but HEYGEN_API_KEY is not set` | Add the secret, or pick engine `auto`/`local` |
-| Site can't read run status | Token lacks **Actions: Read** — renders still work, watch them on the Actions tab |
-| `403 rate limit` | Add/use the PAT (60 → 5,000 req/h) |
-| Blank preview | The player loads `@hyperframes/player` from a CDN; rendering in Actions is unaffected |
-| Render failed | Open the linked run → `render` job → failing step shows the exact API/render error |
-| Workflow never starts | The workflow file must exist on the **default branch**; check the Actions tab for disabled workflows |
+The previous PAT-based browser UI has been replaced. The legacy manual/cloud Actions workflow is kept
+for **trusted repository operators only**; it is not used for public submissions and does not have the
+pilot's sandbox boundaries. See [legacy operator documentation](docs/legacy-rendering.md) for those commands.
+For seamless non-GitHub sign-in, direct uploads, private videos, billing, or larger audiences, add a real
+backend/auth/object-storage layer instead of putting a privileged token in GitHub Pages.

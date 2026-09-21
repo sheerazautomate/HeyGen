@@ -1,0 +1,13 @@
+{
+  "name": "hyperframes-public-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 scripts/build_site.py",
+    "test": "python3 -m unittest discover -s tests -p 'test_*.py' && node --test tests/core.test.mjs",
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2"
+  }
+}

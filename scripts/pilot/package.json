@@ -1,0 +1,9 @@
+{
+  "name": "hyperframes-pilot-renderer",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "hyperframes": "0.8.58",
+    "gsap": "3.14.2"
+  }
+}
