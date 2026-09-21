@@ -21,17 +21,20 @@ test("validates shipped examples without executing them", () => {
 });
 test("unicode HTML survives GitHub packet encoding", () => {
   const input = html + "こんにちは 🌍 اردو";
-  const packet = encodePacket(input, "🌍 Video");
+  const packet = encodePacket(input, "🌍 Video", { fps: 60, quality: "high", format: "mp4", variables: { product: "TEST" } });
   const decoded = JSON.parse(Buffer.from(packet.slice(4), "base64").toString());
   assert.equal(decoded.html, input);
   assert.equal(decoded.title, "🌍 Video");
-  assert.equal(decoded.public, true);
+  assert.equal(decoded.private, true);
+  assert.equal(decoded.fps, 60);
 });
 test("rejects invalid HTML, missing dimensions, and oversized files", () => {
+  // With pro limits, 10MB, so test with huge repeat
+  const huge = html.repeat(700); // ~11MB
   for (const source of [
     "",
     "<h1>Hello</h1>",
-    html.repeat(3),
+    huge,
     html.replace('data-width="1920"', 'data-width="9999"'),
   ]) {
     assert.throws(() => validateComposition(source, policy));
@@ -87,4 +90,12 @@ test("media URLs must be real assets in this repository", () => {
     "https://github.com/other/repo/releases/download/video.mp4",
   ])
     assert.equal(trustedAssetURL(url, "owner/repo"), false);
+});
+test("pro packet includes fps, quality, format, variables", () => {
+  const packet = encodePacket(html, "Pro test", { fps: 60, quality: "high", format: "webm", variables: { headline: "Hello" } });
+  const decoded = JSON.parse(Buffer.from(packet.slice(4), "base64").toString());
+  assert.equal(decoded.fps, 60);
+  assert.equal(decoded.quality, "high");
+  assert.equal(decoded.format, "webm");
+  assert.equal(decoded.variables.headline, "Hello");
 });

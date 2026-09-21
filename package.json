@@ -1,11 +1,15 @@
 {
-  "name": "hyperframes-public-studio",
+  "name": "hyperframes-personal-pro",
   "private": true,
   "type": "module",
+  "description": "Personal pro HyperFrames studio - private, full throttle, 4K/60fps/high, external assets, variables, private GitHub releases",
   "scripts": {
     "build": "python3 scripts/build_site.py",
+    "dev": "python3 scripts/build_site.py && python3 -m http.server 4173 --bind 0.0.0.0 --directory build/site",
     "test": "python3 -m unittest discover -s tests -p 'test_*.py' && node --test tests/core.test.mjs",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "render:local": "python3 scripts/personal_render.py",
+    "render:local:high": "python3 scripts/personal_render.py examples/product-launch.html --quality high --fps 60 --format mp4"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2"

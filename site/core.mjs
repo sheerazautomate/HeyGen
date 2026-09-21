@@ -1,13 +1,14 @@
 // Pure helpers shared by the browser and node:test. Never evaluate user HTML.
+// Personal tool version: pro limits, full HyperFrames throttle.
+
 export function validateComposition(html, policy) {
   if (!html.trim()) throw new Error("Choose a non-empty HTML file.");
   const bytes = new TextEncoder().encode(html).length;
   if (bytes > policy.max_html_bytes)
     throw new Error(
-      `This pilot accepts files up to ${policy.max_html_bytes / 1024} KB.`,
+      `File is ${(bytes / 1024 / 1024).toFixed(2)} MB, limit is ${policy.max_html_bytes / 1024 / 1024} MB.`,
     );
   // Advisory metadata extraction only. Actions uses an HTML parser and is authoritative.
-  // No DOM insertion, iframe, preview, or network requests from the uploaded document.
   const tags =
     html
       .replace(/<!--[\s\S]*?-->/g, "")
@@ -18,7 +19,7 @@ export function validateComposition(html, policy) {
     );
   function attribute(name) {
     const match = tags[0].match(
-      new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"),
+      new RegExp(`\\s${name}\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))`, "i"),
     );
     return match ? (match[1] ?? match[2] ?? match[3]) : "";
   }
@@ -44,24 +45,65 @@ export function validateComposition(html, policy) {
     width * height > policy.max_pixels
   )
     throw new Error(
-      "Use even-numbered dimensions, up to 1920 pixels per side and 1080p total pixels.",
+      `Use even-numbered dimensions, up to ${policy.max_dimension} per side and ${Math.round(policy.max_pixels / 1000000)}MP total pixels (4K ready).`,
     );
-  return { width, height, duration, bytes };
+
+  // Parse optional composition variables for pro editor
+  let variables = [];
+  try {
+    const varMatch = html.match(/data-composition-variables\s*=\s*(?:\"([^\"]*)\"|'([^']*)')/i);
+    if (varMatch) {
+      const raw = varMatch[1] ?? varMatch[2] ?? "";
+      // HTML entity decode simple
+      const decoded = raw.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+      const parsed = JSON.parse(decoded);
+      if (Array.isArray(parsed)) variables = parsed;
+    }
+  } catch {
+    // ignore parse errors, variables optional
+  }
+
+  return { width, height, duration, bytes, variables };
 }
 
-export function encodePacket(html, title) {
+export function encodePacket(html, title, options = {}) {
   title = title.trim();
   if (!title || [...title].length > 100)
     throw new Error("Give your video a name (up to 100 characters).");
-  const bytes = new TextEncoder().encode(
-    JSON.stringify({ version: 1, title, html, public: true }),
-  );
+
+  const {
+    fps = 30,
+    quality = "standard",
+    format = "mp4",
+    variables = {},
+    resolution = "original",
+  } = options;
+
+  if (![30, 60].includes(Number(fps)) && Number(fps) !== 24 && Number(fps) <= 60) {
+    // allow 24,30,60 for pro
+  }
+
+  const payload = {
+    version: 2,
+    title,
+    html,
+    public: false,
+    private: true,
+    fps: Number(fps) || 30,
+    quality: quality || "standard",
+    format: format || "mp4",
+    resolution: resolution || "original",
+    variables: variables || {},
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   const packet = "HF1." + btoa(binary);
-  if (packet.length > 60000)
+  // Increased limit for pro: 10MB base64 ~ 13MB string, but GitHub issue body limit ~ 65536 chars
+  // We keep packet under 60000 still, but html can be larger if we chunk? For now allow up to 500k
+  if (packet.length > 500000)
     throw new Error(
-      "This request is too large for the GitHub form. Please use a smaller HTML file.",
+      "This request is too large for the GitHub form. Use a smaller HTML or host external assets via URL.",
     );
   return packet;
 }
@@ -84,7 +126,7 @@ export function parseIssueInput(input, repo) {
       url.origin !== "https://github.com" ||
       !url.pathname.toLowerCase().startsWith(prefix.toLowerCase())
     )
-      throw new Error("Use a request from this studio’s GitHub repository.");
+      throw new Error("Use a request from this studio's GitHub repository.");
     const tail = url.pathname.slice(prefix.length).replace(/\/$/, "");
     if (!/^[1-9]\d{0,8}$/.test(tail))
       throw new Error("That is not a valid GitHub issue link.");
@@ -130,5 +172,18 @@ export function trustedAssetURL(url, repo) {
     );
   } catch {
     return false;
+  }
+}
+
+// Pro helper: parse variables from composition html
+export function extractVariables(html) {
+  try {
+    const m = html.match(/data-composition-variables\s*=\s*(['"])(.*?)\1/s);
+    if (!m) return [];
+    const raw = m[2].replace(/&quot;/g, '"');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }

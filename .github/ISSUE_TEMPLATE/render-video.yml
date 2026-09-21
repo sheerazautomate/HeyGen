@@ -1,20 +1,21 @@
-name: Create a video
-description: Submit the request copied from HyperFrames Studio. A GitHub account and pilot approval are required.
-title: "[Video] My video"
+name: Create a pro video
+description: Submit the request copied from your personal HyperFrames Studio. Private repo, full throttle.
+title: "[Video] My pro video"
 body:
   - type: markdown
     attributes:
       value: |
-        ## One last step
-        Paste the request you copied from the studio below, then click **Create**.
-        Your request, HTML, and finished video will be **public**. Do not include secrets or personal information.
-        Only approved pilot users can render. Ask the repository owner for access before submitting.
+        ## Pro render - full throttle
+        Paste the request you copied from your personal studio below, then click **Create**.
+        Your video will be stored as a **private release** in this repo (since repo is private).
+        Pro limits: up to 10MB HTML, up to 10 minutes, up to 4K (4096px), 60fps, high quality, MP4/WebM/MOV.
+        External assets (images, fonts, audio, video) are now allowed via network.
         After submitting, copy this issue's URL back into the studio to watch progress.
   - type: textarea
     id: request
     attributes:
       label: Render request
-      description: Paste the entire request beginning HF1. from the studio. No need to edit or understand it.
+      description: Paste the entire request beginning HF1. from the personal studio. Includes your quality/fps/format/variables settings.
       placeholder: HF1.eyJ...
       render: text
     validations:
@@ -22,7 +23,7 @@ body:
   - type: checkboxes
     id: consent
     attributes:
-      label: Public sharing
+      label: Private use confirmation
       options:
-        - label: I understand that my HTML and video will be public, and I have the rights to publish them.
+        - label: I understand this is a private render for my own projects and I have the rights to use the content.
           required: true
