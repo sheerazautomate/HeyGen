@@ -1,0 +1,144 @@
+name: Create pilot video
+run-name: "Video request #${{ github.event.issue.number }}"
+
+on:
+  issues:
+    types: [opened]
+
+# No repository_dispatch, issue edits/comments, PR code, or user-supplied refs.
+permissions: {}
+concurrency:
+  group: pilot-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  admit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      accepted: ${{ steps.request.outputs.accepted }}
+      issue: ${{ steps.request.outputs.issue }}
+      comment: ${{ steps.request.outputs.comment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check approval, limits, consent, and composition
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/pilot/admit.py
+
+      - uses: actions/upload-artifact@v4
+        if: steps.request.outputs.accepted == 'true'
+        with:
+          name: pilot-request
+          path: build/request/
+          retention-days: 3
+          if-no-files-found: error
+
+  render:
+    needs: admit
+    if: needs.admit.outputs.accepted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pilot-request
+          path: build/request
+
+      - name: Build trusted offline renderer (before executing any upload)
+        run: docker build -t pilot-renderer scripts/pilot
+
+      - name: Render without network, secrets, or repository mounts
+        timeout-minutes: 13
+        run: bash scripts/pilot/run_sandbox.sh
+
+      - name: Always stop the sandbox
+        if: always()
+        run: docker rm -f pilot-sandbox >/dev/null 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pilot-media
+          path: build/media/
+          retention-days: 3
+          if-no-files-found: error
+
+  # Runs alongside rendering, but never on the renderer's machine.
+  creating:
+    needs: admit
+    if: needs.admit.outputs.accepted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_COMMENT: ${{ needs.admit.outputs.comment }}
+          PILOT_STATUS: creating
+        run: python3 scripts/pilot/status.py
+
+  publish:
+    needs: [admit, render, creating]
+    if: ${{ !cancelled() && needs.admit.outputs.accepted == 'true' && needs.render.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pilot-request
+          path: build/request
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pilot-media
+          path: build/media
+
+      - name: Publish video and update its request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/pilot/publish.py
+
+  failure:
+    needs: [admit, render, creating, publish]
+    if: ${{ always() && needs.admit.outputs.accepted == 'true' && needs.publish.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_COMMENT: ${{ needs.admit.outputs.comment }}
+          PILOT_STATUS: failed
+        run: python3 scripts/pilot/status.py
