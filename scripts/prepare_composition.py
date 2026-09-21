@@ -78,8 +78,21 @@ def main() -> int:
     inputs = event.get("inputs") or {}
     payload = (event.get("client_payload") or {}) if name == "repository_dispatch" else {}
 
+    # client_payload is capped at 10 properties by GitHub, so the site packs all
+    # render settings into one `settings_json` string. Individual fields are
+    # still accepted (workflow_dispatch inputs, hand-rolled dispatches).
+    settings = {}
+    if isinstance(payload.get("settings_json"), str) and payload["settings_json"].strip():
+        try:
+            settings = json.loads(payload["settings_json"])
+            if not isinstance(settings, dict):
+                raise ValueError("must be a JSON object")
+        except ValueError as exc:
+            print(f"❌ client_payload.settings_json is invalid: {exc}")
+            return 1
+
     def pick(field, default=""):
-        value = payload.get(field, inputs.get(field, default))
+        value = settings.get(field, payload.get(field, inputs.get(field, default)))
         return "" if value is None else str(value).strip()
 
     # ---- Resolve the HTML ----------------------------------------------------
