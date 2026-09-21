@@ -219,17 +219,21 @@ def main() -> int:
     payload = (event.get("client_payload") or {}) if name == "repository_dispatch" else {}
 
     # client_payload is capped at 10 properties by GitHub, so the site packs all
-    # render settings into one `settings_json` string. Individual fields are
-    # still accepted (workflow_dispatch inputs, hand-rolled dispatches).
+    # render settings into one `settings_json` string. Hand-rolled dispatches
+    # sometimes send it as a JSON object instead — accept both. Individual
+    # fields are also accepted (workflow_dispatch inputs, legacy payloads).
     settings = {}
-    if isinstance(payload.get("settings_json"), str) and payload["settings_json"].strip():
+    raw_settings = payload.get("settings_json")
+    if isinstance(raw_settings, str) and raw_settings.strip():
         try:
-            settings = json.loads(payload["settings_json"])
+            settings = json.loads(raw_settings)
             if not isinstance(settings, dict):
                 raise ValueError("must be a JSON object")
         except ValueError as exc:
             print(f"❌ client_payload.settings_json is invalid: {exc}")
             return 1
+    elif isinstance(raw_settings, dict):
+        settings = raw_settings
 
     def pick(field, default=""):
         value = settings.get(field, payload.get(field, inputs.get(field, default)))
@@ -307,10 +311,13 @@ def main() -> int:
     if engine not in VALID_ENGINES:
         engine = "auto"
 
-    variables = pick("variables_json", "")
-    if variables:
+    raw_vars = settings.get("variables_json", payload.get("variables_json", inputs.get("variables_json", "")))
+    variables = ""
+    if isinstance(raw_vars, dict):
+        variables = json.dumps(raw_vars)
+    elif isinstance(raw_vars, str) and raw_vars.strip():
         try:
-            parsed = json.loads(variables)
+            parsed = json.loads(raw_vars)
             if not isinstance(parsed, dict):
                 raise ValueError("must be a JSON object")
             variables = json.dumps(parsed)
