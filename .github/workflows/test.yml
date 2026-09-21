@@ -1,0 +1,56 @@
+name: Test studio and pilot
+
+on:
+  pull_request:
+  push:
+    branches: [main, "arena/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: npm ci
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  # Real rendering and container restrictions need a Linux Docker host.
+  sandbox-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - run: docker build -t pilot-renderer scripts/pilot
+
+      - name: Render the trusted one-second fixture in the production sandbox
+        run: |
+          mkdir -p build/request
+          cp tests/fixtures/smoke.html build/request/index.html
+          bash scripts/pilot/run_sandbox.sh
+          test -s build/media/video.mp4
+          test -s build/media/thumbnail.jpg
+
+      - name: Always stop the sandbox
+        if: always()
+        run: docker rm -f pilot-sandbox >/dev/null 2>&1 || true
