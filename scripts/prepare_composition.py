@@ -16,6 +16,7 @@ import base64
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.request
 
@@ -65,6 +66,38 @@ def clean_title(raw: str, fallback: str) -> str:
     title = re.sub(r"\s+", " ", (raw or "").strip())
     title = re.sub(r"[\x00-\x1f\x7f]", "", title)
     return (title[:180] or fallback)
+
+
+def preflight_browser(engine: str) -> None:
+    """Pre-fetch chrome-headless-shell for the local render engine.
+
+    `hyperframes render` exits immediately with code 1 when its inline browser
+    download fails, so download it up front (in this step) with one forced
+    retry. Non-fatal: if this fails, the render step will surface the real
+    error. Skipped for the HeyGen cloud engine, which needs no local browser.
+    """
+    if engine == "heygen-cloud":
+        return
+    for attempt, flags in enumerate(([], ["--force"]), start=1):
+        label = f"hyperframes browser ensure {' '.join(flags)}".strip()
+        print(f"🌐 Prefetching render browser (attempt {attempt}/2: {label})…", flush=True)
+        try:
+            proc = subprocess.run(
+                ["npx", "-y", "hyperframes", "browser", "ensure", *flags],
+                timeout=300,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.TimeoutExpired:
+            print("⚠️ browser ensure timed out after 300s — continuing.", flush=True)
+            return
+        if proc.returncode == 0:
+            print("✅ Render browser ready.", flush=True)
+            return
+        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        tail = [line for line in combined.strip().splitlines() if line.strip()][-6:]
+        print("⚠️ browser ensure failed:\n" + "\n".join(tail), flush=True)
+    print("⚠️ Continuing without a pre-fetched browser — the render step will retry.", flush=True)
 
 
 def main() -> int:
@@ -184,6 +217,10 @@ def main() -> int:
 
     for warning in warnings:
         print(f"⚠️ {warning}")
+
+    # Download the local-render browser now (with retry) so the render step
+    # never dies on an inline download failure. No-op for the cloud engine.
+    preflight_browser(engine)
 
     emit(props, {
         "title": title,
