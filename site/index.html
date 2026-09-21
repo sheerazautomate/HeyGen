@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Turn your HyperFrames HTML into a video. Upload a composition, submit with GitHub, and watch your finished video here."
+      content="Personal HyperFrames studio - full throttle, private, 4K/60fps/high quality, external assets allowed."
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com; media-src https://github.com https://*.githubusercontent.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://*.githubusercontent.com https:; media-src https://github.com https://*.githubusercontent.com blob: https:; connect-src 'self' https://api.github.com https:; font-src 'self' https://fonts.gstatic.com https: data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'self' blob: data:"
     />
-    <title>HyperFrames Studio — From script to screen</title>
+    <title>HyperFrames Studio — Personal Pro • Full Throttle</title>
     <link rel="stylesheet" href="style.css" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <script src="config.js" defer></script>
@@ -22,48 +22,46 @@
     <header class="header">
       <a class="brand" href="#create" aria-label="HyperFrames Studio home"
         ><span class="brand-icon">h<span>f</span></span
-        ><span>HyperFrames<span class="brand-light"> / studio</span></span></a
+        ><span>HyperFrames<span class="brand-light"> / personal pro</span></span></a
       >
       <nav aria-label="Main navigation">
         <a href="#create" data-view="create" class="active">Create a video</a>
-        <a href="#gallery" data-view="gallery">Public gallery</a>
+        <a href="#gallery" data-view="gallery">Private gallery</a>
         <a href="#track" data-view="track">Track a request</a>
       </nav>
-      <span class="pilot-badge"><i></i> Small, free pilot</span>
+      <span class="pilot-badge"><i></i> Private • Full throttle • 4K/60fps</span>
     </header>
     <main id="main">
       <section id="view-create" class="view">
         <div class="hero">
           <div class="hero-copy">
             <div class="eyebrow">
-              <span class="little-line"></span> FROM SCRIPT TO SCREEN
+              <span class="little-line"></span> PERSONAL TOOL • FULL THROTTLE
             </div>
-            <h1>You bring the HTML.<br />We’ll bring it <em>to life.</em></h1>
+            <h1>Your HTML.<br />Rendered <em>without limits.</em></h1>
             <p>
-              Turn your HyperFrames composition into a shareable video.<br
-                class="desktop"
-              />
-              No installs, no commands, no complicated settings.
+              Same interface, pro power. 10MB HTML, 10min duration, 4K, 60fps,<br class="desktop" />
+              high quality, MP4/WebM/MOV, external assets allowed, variables.
             </p>
             <div class="hero-tags">
-              <span>↗ Browser to video</span><span>✓ No API keys needed</span
-              ><span>◎ Made to share</span>
+              <span>↗ 4K • 60fps • High</span><span>✓ Network enabled</span
+              ><span>◎ Private repo</span>
             </div>
           </div>
           <div class="hero-art" aria-hidden="true">
             <div class="art-top">
-              <span>YOUR NEXT GREAT VIDEO</span><span>01 / ∞</span>
+              <span>YOUR PRO STUDIO</span><span>∞ / UNLIMITED</span>
             </div>
             <div class="orb orb-one"></div>
             <div class="orb orb-two"></div>
             <div class="art-title">
-              A little code.<br /><i>A lot of possibility.</i>
+              Full throttle<br /><i>HyperFrames.</i>
             </div>
             <div class="art-play">▶</div>
             <div class="art-bottom">
               <span class="art-file">&lt;/&gt; script.html</span
               ><span class="art-arrow">⟶</span
-              ><span class="art-file">▷ video.mp4</span>
+              ><span class="art-file">▷ video.mp4 • webm • mov</span>
             </div>
             <div class="art-timeline">
               <span></span><b></b><span></span><span></span>
@@ -73,26 +71,26 @@
         <div class="workflow-strip" aria-label="How it works">
           <div>
             <span class="step-num">01</span><strong>Add your script</strong
-            ><span>Choose your HTML file</span>
+            ><span>Up to 10MB, external assets OK</span>
           </div>
           <b>→</b>
           <div>
-            <span class="step-num">02</span><strong>Submit with GitHub</strong
-            ><span>One quick copy-and-paste</span>
+            <span class="step-num">02</span><strong>Set pro options</strong
+            ><span>Quality, fps, format, variables</span>
           </div>
           <b>→</b>
           <div>
-            <span class="step-num">03</span><strong>Watch it here</strong
-            ><span>Your video, ready to download</span>
+            <span class="step-num">03</span><strong>Private render</strong
+            ><span>4 CPUs • 8GB • network • private release</span>
           </div>
         </div>
         <div class="section-heading">
           <div>
-            <span class="eyebrow">THE CREATION DESK</span>
-            <h2>Let’s make something move.</h2>
+            <span class="eyebrow">THE PRO CREATION DESK</span>
+            <h2>Make it move — without limits.</h2>
           </div>
           <span class="small muted"
-            >A GitHub account + pilot approval are required</span
+            >Private GitHub repo • No quotas • Full HyperFrames</span
           >
         </div>
         <div class="workspace">
@@ -101,15 +99,15 @@
               <h3 id="upload-heading">
                 <span class="tiny-step">1</span> Your composition
               </h3>
-              <span class="chip">HTML → MP4</span>
+              <span class="chip">HTML → MP4/WebM/MOV • 4K</span>
             </div>
             <input id="file" type="file" accept=".html,.htm,text/html" hidden />
             <button id="dropzone" class="dropzone" type="button">
               <span class="upload-icon" aria-hidden="true">↑</span>
               <strong>Drop your script.html here</strong
-              ><span>or <u>browse files</u> to get started</span>
+              ><span>or <u>browse files</u> — up to 10MB</span>
               <small id="file-limit"
-                >HyperFrames HTML · up to 24 KB · up to 30 seconds</small
+                >HyperFrames HTML · up to 10 MB · up to 10 minutes · 4K ready</small
               >
             </button>
             <div id="file-summary" class="file-summary" hidden>
@@ -127,23 +125,45 @@
                 Try an example <span aria-hidden="true">↗</span>
               </button>
             </p>
+
+            <!-- Pro preview -->
+            <div id="preview-wrap" class="preview-wrap" hidden>
+              <div class="preview-heading">
+                <strong>Live preview</strong><span class="small muted">Sandboxed iframe • seekable</span>
+              </div>
+              <div class="preview-frame-wrap">
+                <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Composition preview"></iframe>
+              </div>
+              <p class="small muted">Preview uses your HTML directly — external assets load via network in this pro version.</p>
+            </div>
+
             <label for="title">Give your video a name</label
             ><input
               id="title"
               maxlength="100"
-              placeholder="e.g. My product launch"
+              placeholder="e.g. My product launch - 4K pro"
               autocomplete="off"
             />
+
+            <!-- Variables editor -->
+            <div id="variables-card" class="variables-card" hidden>
+              <div class="card-heading small-heading">
+                <h4>Composition variables</h4><span class="chip">data-composition-variables</span>
+              </div>
+              <p class="small muted">Override variables at render time — one bundle, many videos.</p>
+              <div id="variables-list"></div>
+            </div>
+
             <p id="file-message" role="status" class="message" hidden></p>
-            <details class="compatibility">
-              <summary>What kind of HTML works?</summary>
+            <details class="compatibility" open>
+              <summary>What works in pro mode? (Full throttle)</summary>
               <p>
                 A single <strong>HyperFrames composition</strong> with declared
-                dimensions, duration, and a timeline—not an ordinary webpage or
-                text script. The pilot renders offline: inline assets and the
-                supported GSAP / HyperFrames runtimes work; external images,
-                fonts, audio, and other scripts do not load. Fonts may look
-                different.
+                dimensions, duration, and timeline. <strong>Pro unlocks:</strong>
+                external images, fonts (Google Fonts etc), audio, video, fetch,
+                any CDN script, GSAP 3.15, Three.js, Lottie, shader transitions.
+                Network is enabled in renderer. Variables via <code>data-composition-variables</code> are editable below.
+                Output: MP4/WebM/MOV, up to 4K, 60fps, high quality, up to 2GB.
               </p>
               <a href="examples/product-launch.html" download="script.html"
                 >Download a sample script</a
@@ -153,60 +173,101 @@
           <aside class="card settings-card" aria-labelledby="settings-heading">
             <div class="card-heading">
               <h3 id="settings-heading">
-                <span class="tiny-step">2</span> Ready for the screen
+                <span class="tiny-step">2</span> Pro render settings
               </h3>
-              <span class="small green">Simple by default</span>
+              <span class="small green">Full throttle</span>
             </div>
+
+            <div class="pro-controls">
+              <div class="control-row">
+                <label for="quality">Quality</label>
+                <select id="quality">
+                  <option value="draft">Draft — fast preview</option>
+                  <option value="standard" selected>Standard — balanced</option>
+                  <option value="high">High — pro delivery</option>
+                </select>
+              </div>
+              <div class="control-row">
+                <label for="fps">FPS</label>
+                <select id="fps">
+                  <option value="24">24 fps — cinematic</option>
+                  <option value="30" selected>30 fps — standard</option>
+                  <option value="60">60 fps — smooth</option>
+                </select>
+              </div>
+              <div class="control-row">
+                <label for="format">Format</label>
+                <select id="format">
+                  <option value="mp4" selected>MP4 — widely supported</option>
+                  <option value="webm">WebM — transparent alpha</option>
+                  <option value="mov">MOV — pro editing</option>
+                </select>
+              </div>
+              <div class="control-row">
+                <label for="resolution">Resolution</label>
+                <select id="resolution">
+                  <option value="original" selected>Original — from composition</option>
+                  <option value="1080p">1080p — Full HD</option>
+                  <option value="4k">4K — Ultra HD (if composition is 4K)</option>
+                </select>
+              </div>
+            </div>
+
             <dl class="output-settings">
               <div>
-                <dt>Video format</dt>
-                <dd>MP4 <span class="muted">/ widely supported</span></dd>
+                <dt>Max duration</dt>
+                <dd id="duration-display">10 minutes</dd>
               </div>
               <div>
-                <dt>Quality</dt>
-                <dd>Standard <span class="muted">· 30 fps</span></dd>
+                <dt>Max dimensions</dt>
+                <dd id="dimensions">Matched to your script • up to 4K</dd>
               </div>
               <div>
-                <dt>Dimensions</dt>
-                <dd id="dimensions">Matched to your script</dd>
+                <dt>Renderer</dt>
+                <dd>4 CPUs • 8GB • network ON</dd>
               </div>
               <div>
                 <dt>Visibility</dt>
-                <dd><span class="public-dot"></span> Public gallery</dd>
+                <dd><span class="public-dot"></span> Private release</dd>
+              </div>
+              <div>
+                <dt>External assets</dt>
+                <dd>Allowed • full throttle</dd>
               </div>
             </dl>
+
             <div class="notice">
               <span aria-hidden="true">◎</span>
               <div>
-                <strong>A small pilot, with a little help from GitHub.</strong>
+                <strong>Private pro tool — same interface, no limits.</strong>
                 <p>
-                  We’ll prepare your request. You’ll paste it into a GitHub form
-                  and submit. Then come back here for your video.
+                  Your repo is private. Videos are private releases. No approval
+                  list, no daily quotas (1000/day soft limit). Uses full
+                  HyperFrames with network access.
                 </p>
                 <a id="pilot-info" href="#"
-                  >Need pilot access? Ask the owner ↗</a
+                  >View private repo ↗</a
                 >
               </div>
             </div>
             <label class="consent"
               ><input id="consent" type="checkbox" /><span
-                >I’m happy for my
-                <strong>script and video to be public</strong>, and I have the
-                rights to share them.</span
+                >I confirm this is for my <strong>private projects</strong> and I have the
+                rights to use the content.</span
               ></label
             >
             <button id="prepare" class="primary" type="button" disabled>
-              Prepare my video <span aria-hidden="true">→</span>
+              Prepare pro render <span aria-hidden="true">→</span>
             </button>
             <p id="quota-note" class="button-caption">
-              Free pilot · 2 requests per person / day · No payment details
+              Private • Unlimited • 4K • 60fps • High quality • Network enabled
             </p>
             <div id="handoff" class="handoff" hidden>
-              <h4>Your request is ready.</h4>
+              <h4>Your pro request is ready.</h4>
               <ol>
                 <li>
                   <button id="copy-request" class="text-button" type="button">
-                    Copy your render request
+                    Copy your pro render request
                   </button>
                 </li>
                 <li>
@@ -217,7 +278,7 @@
                     rel="noopener noreferrer"
                     >Open the GitHub form ↗</a
                   >, sign in, paste into <strong>Render request</strong>, accept
-                  public sharing, and click <strong>Create</strong>.
+                  private confirmation, and click <strong>Create</strong>.
                 </li>
                 <li>
                   Copy the new issue’s link, then
@@ -231,56 +292,57 @@
                   id="request-packet"
                   readonly
                   aria-label="Render request to copy"
-                  rows="4"
+                  rows="6"
                   spellcheck="false"
                 ></textarea>
               </details>
+              <div class="pro-summary" id="pro-summary"></div>
             </div>
           </aside>
         </div>
         <div class="under-workspace">
           <span
-            >◈ Your file stays in this browser until you submit it on
-            GitHub.</span
-          ><span>No software. Just your next video.</span>
+            >◈ Private tool — file stays in browser until you submit to your private repo.</span
+          ><span>Full throttle HyperFrames • network • 4K • 60fps • high quality</span>
         </div>
         <section class="faq">
           <div>
-            <span class="eyebrow">GOOD TO KNOW</span>
-            <h2>A simpler way<br />to press play.</h2>
+            <span class="eyebrow">PRO DETAILS</span>
+            <h2>Same UI.<br />Pro power.</h2>
           </div>
           <div>
-            <details>
-              <summary>Do I need to know how to code?</summary>
+            <details open>
+              <summary>What changed from pilot to personal pro?</summary>
               <p>
-                No. If someone has given you a compatible script.html, just
-                choose it here and follow the steps. You do need a GitHub
-                account for this GitHub-only pilot.
+                Limits removed: 24KB→10MB, 30s→600s, 1920px→4096px, 1080p→4K, 30fps→60fps,
+                standard→high quality, MP4 only→MP4/WebM/MOV, 256MB→2GB.
+                Network enabled (external images, fonts, audio, video allowed).
+                Private repo (videos are private releases). No approval list, no 2/day quota.
+                Renderer upgraded to 4 CPUs, 8GB RAM, 15min timeout. UI adds quality/fps/format/variables editor + live preview.
               </p>
             </details>
             <details>
-              <summary>How long does a video take?</summary>
+              <summary>How do I use external assets?</summary>
               <p>
-                Usually a few minutes after your request is accepted. GitHub
-                queues and renderer setup can add time. Check your request here;
-                you don’t have to keep the page open.
+                Just use normal URLs in your HTML: &lt;img src="https://..."&gt;,
+                Google Fonts links, audio/video tags, fetch(). In pilot these were blocked offline.
+                In pro mode, Docker has network access, so they load during render. Keep assets CORS-friendly.
               </p>
             </details>
             <details>
-              <summary>Who can use the pilot?</summary>
+              <summary>What about variables?</summary>
               <p>
-                Anyone can explore the site and gallery. Rendering is limited to
-                accounts approved by the owner. Requests outside the pilot are
-                declined automatically. Daily limits reset at midnight UTC.
+                If your composition has <code>data-composition-variables</code>, the studio
+                auto-detects them and shows an editor. You can override at render time — same HTML produces many videos.
+                Variables are injected via window.__hyperframes.getVariables override.
               </p>
             </details>
             <details>
-              <summary>Can I delete or keep my video private?</summary>
+              <summary>Is it really private?</summary>
               <p>
-                This pilot is public only. The request contains your source
-                HTML, and the video is a public GitHub Release. Don’t include
-                personal information or secrets. Contact the owner to request
-                removal; public copies may remain elsewhere.
+                Yes if your GitHub repo is private (make it private in Settings). Releases are private then.
+                The studio itself is still static site — host it privately or on localhost via python -m http.server.
+                No public gallery — only you see your releases when logged into GitHub.
               </p>
             </details>
           </div>
@@ -288,14 +350,14 @@
       </section>
       <section id="view-gallery" class="view" hidden>
         <div class="page-heading">
-          <div class="eyebrow">THE COMMUNITY SCREEN</div>
-          <h1>Made with a little <em>HTML.</em></h1>
+          <div class="eyebrow">YOUR PRIVATE SCREEN</div>
+          <h1>Your pro renders — <em>private.</em></h1>
           <p>
-            Finished videos from the studio. Watch, get inspired, or download.
+            Finished videos from your private repo. Only visible when authenticated to GitHub, or via local tracking.
           </p>
         </div>
         <div class="section-heading">
-          <h2>Public gallery <span id="video-count" class="count"></span></h2>
+          <h2>Private gallery <span id="video-count" class="count"></span></h2>
           <button id="refresh-gallery" class="secondary" type="button">
             ↻ Refresh
           </button>
@@ -304,44 +366,42 @@
         <div id="gallery" class="gallery"></div>
         <div id="gallery-empty" class="empty" hidden>
           <span class="empty-icon">▷</span>
-          <h3>The screen is yours.</h3>
+          <h3>Your screen is private.</h3>
           <p>
-            No published videos yet. The first finished render will appear here.
+            No private releases yet. Your first pro render will appear here after you track it.
           </p>
-          <a class="primary inline" href="#create">Create a video →</a>
+          <a class="primary inline" href="#create">Create a pro video →</a>
         </div>
         <button id="more-videos" class="secondary more" type="button" hidden>
           Load more
         </button>
         <p class="small muted">
-          All videos are public. Having trouble playing one? Use its download
-          link to open it in your video player.
+          Private gallery requires GitHub API access to private releases — if you get 404, ensure you are using the studio from an authenticated context or just use Track page with issue link (works with private repo if you are logged into GitHub in same browser).
         </p>
       </section>
       <section id="view-track" class="view" hidden>
         <div class="page-heading">
-          <div class="eyebrow">FROM REQUEST TO READY</div>
-          <h1>Your video is on <em>its way.</em></h1>
-          <p>Already submitted on GitHub? Bring your request link back here.</p>
+          <div class="eyebrow">FROM REQUEST TO READY • PRO</div>
+          <h1>Your pro video is on <em>its way.</em></h1>
+          <p>Already submitted to your private repo? Track it here — full throttle logs in Actions.</p>
         </div>
         <div class="tracking-layout">
           <section class="card tracking-card">
-            <h3>Find your video</h3>
+            <h3>Find your pro video</h3>
             <label for="request-link"
-              >GitHub request link or issue number</label
+              >GitHub request link or issue number (private repo)</label
             >
             <div class="input-action">
               <input
                 id="request-link"
-                placeholder="Paste your GitHub issue link"
+                placeholder="Paste your private GitHub issue link"
                 inputmode="url"
               /><button id="track-request" class="primary" type="button">
                 Find video →
               </button>
             </div>
             <p class="small muted">
-              Copy the address of the issue you created after submitting the
-              form.
+              Copy the address of the issue you created in your private repo.
             </p>
             <p id="track-message" class="message" role="status" hidden></p>
             <div id="tracking-result" hidden>
@@ -352,9 +412,9 @@
               <ol class="progress-steps">
                 <li id="progress-queued">01 <strong>Queued</strong></li>
                 <li id="progress-creating">
-                  02 <strong>Creating video</strong>
+                  02 <strong>Creating video • 4CPU/8GB</strong>
                 </li>
-                <li id="progress-ready">03 <strong>Ready</strong></li>
+                <li id="progress-ready">03 <strong>Ready • Private</strong></li>
               </ol>
               <p id="tracking-detail" aria-live="polite"></p>
               <div id="tracking-video"></div>
@@ -362,15 +422,14 @@
                 >Open request on GitHub ↗</a
               >
               <p class="small muted">
-                Status refreshes every 90 seconds for up to 25 minutes. Click
-                Find video to check again.
+                Status refreshes every 90 seconds for up to 25 minutes. For private repo, you need to be logged into GitHub — otherwise use Actions tab directly.
               </p>
             </div>
           </section>
           <aside class="card recent-card">
             <h3>On this browser</h3>
             <p class="small muted">
-              Recently tracked requests. No account is signed in on this site.
+              Recently tracked pro requests — local only.
             </p>
             <ul id="recent-requests"></ul>
             <button id="clear-history" class="text-button" type="button">
@@ -378,10 +437,10 @@
             </button>
             <div class="notice">
               <div>
-                <strong>It’s okay to step away.</strong>
+                <strong>Pro rendering continues on GitHub.</strong>
                 <p>
-                  Your render continues on GitHub even if you close this page.
-                  Keep your request link to come back later.
+                  Even if you close this page, your 4K/60fps/high quality render continues in GitHub Actions (up to 15 min).
+                  Keep your issue link.
                 </p>
               </div>
             </div>
@@ -392,19 +451,19 @@
     <footer>
       <a class="brand" href="#create"
         ><span class="brand-icon">h<span>f</span></span
-        >HyperFrames<span class="brand-light"> / studio</span></a
-      ><span>HTML in. Possibility out.</span
+        >HyperFrames<span class="brand-light"> / personal pro</span></a
+      ><span>Private • Full throttle • 10MB • 10min • 4K • 60fps • High</span
       ><a
         id="repository-link"
         href="#"
         target="_blank"
         rel="noopener noreferrer"
-        >Powered by GitHub Actions ↗</a
+        >Private GitHub repo ↗</a
       >
     </footer>
     <noscript
-      >This studio needs JavaScript. You can still submit through the
-      repository’s Create a video issue form.</noscript
+      >This pro studio needs JavaScript. You can still submit through the
+      repository’s Create a pro video issue form.</noscript
     >
   </body>
 </html>

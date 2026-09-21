@@ -4,6 +4,7 @@ import {
   parseIssueInput,
   parseStatus,
   trustedAssetURL,
+  extractVariables,
 } from "./core.mjs";
 
 const $ = (selector) => document.querySelector(selector);
@@ -11,11 +12,12 @@ const config = window.SITE_CONFIG;
 const repo = `${config.owner}/${config.repo}`;
 const repoURL = `https://github.com/${repo}`;
 const policy = config.pilot;
-const storageKey = `hyperframes:pilot:${repo}:recent`;
+const storageKey = `hyperframes:personal:${repo}:recent`;
 let html = "",
   metadata = null,
   view = "",
-  trackingNumber = null;
+  trackingNumber = null,
+  currentVariables = {};
 let timer,
   trackEpoch = 0,
   pollStarted = 0,
@@ -43,9 +45,7 @@ function saveRecent(number) {
   const items = [number, ...recent().filter((n) => n !== number)].slice(0, 10);
   try {
     localStorage.setItem(storageKey, JSON.stringify(items));
-  } catch {
-    /* storage may be blocked */
-  }
+  } catch {}
   drawRecent();
 }
 function drawRecent() {
@@ -56,7 +56,7 @@ function drawRecent() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "text-button";
-    button.textContent = `Request #${number} →`;
+    button.textContent = `Pro Request #${number} →`;
     button.addEventListener("click", () => {
       $("#request-link").value = String(number);
       startTracking();
@@ -66,7 +66,7 @@ function drawRecent() {
   }
   if (!list.children.length) {
     const li = document.createElement("li");
-    li.textContent = "No requests tracked yet.";
+    li.textContent = "No pro requests tracked yet.";
     list.append(li);
   }
 }
@@ -78,11 +78,11 @@ async function api(path) {
   if (!response.ok) {
     if (response.status === 403 || response.status === 429)
       throw new Error(
-        "GitHub’s public request limit has been reached. Please wait a few minutes, or check your request directly on GitHub.",
+        "GitHub API limit reached. Private repo needs you logged into GitHub. Try Actions tab directly or wait.",
       );
     if (response.status === 404)
       throw new Error(
-        "We couldn’t find that request or video in this studio. Check the link and try again.",
+        "Not found — private repo? Make sure you're logged into GitHub and have access, or check the issue link.",
       );
     throw new Error(
       "GitHub is temporarily unavailable. Please try again shortly.",
@@ -92,41 +92,128 @@ async function api(path) {
 }
 function friendlyError(error) {
   return error.name === "TimeoutError" || error instanceof TypeError
-    ? "We couldn’t reach GitHub. Check your connection and try again."
+    ? "We couldn't reach GitHub. Check your connection and try again."
     : error.message;
 }
 function invalidateHandoff() {
   $("#handoff").hidden = true;
   $("#request-packet").value = "";
   $("#copy-message").textContent = "";
+  const hasVars = Object.keys(currentVariables).length > 0;
   $("#prepare").disabled =
     !metadata ||
     !$("#title").value.trim() ||
     !$("#consent").checked ||
     !policy.enabled;
+
+  // Update pro summary if visible
+  if (!$("#handoff").hidden) updateProSummary();
 }
 function clearFile() {
   html = "";
   metadata = null;
+  currentVariables = {};
   $("#file").value = "";
   $("#dropzone").hidden = false;
   $("#file-summary").hidden = true;
-  $("#dimensions").textContent = "Matched to your script";
+  $("#preview-wrap").hidden = true;
+  $("#variables-card").hidden = true;
+  $("#variables-list").replaceChildren();
+  $("#dimensions").textContent = "Matched to your script • up to 4K";
+  $("#duration-display").textContent = `${policy.max_duration_seconds / 60} minutes`;
   invalidateHandoff();
+  const iframe = $("#preview-frame");
+  if (iframe) iframe.srcdoc = "";
+}
+function renderVariablesEditor(varsSchema) {
+  const container = $("#variables-list");
+  container.replaceChildren();
+  currentVariables = {};
+
+  if (!varsSchema || !varsSchema.length) {
+    $("#variables-card").hidden = true;
+    return;
+  }
+
+  $("#variables-card").hidden = false;
+  for (const v of varsSchema) {
+    if (!v.id) continue;
+    const row = document.createElement("div");
+    row.className = "var-row";
+    const label = document.createElement("label");
+    label.textContent = v.label || v.id;
+    label.htmlFor = `var-${v.id}`;
+    const input = document.createElement("input");
+    input.id = `var-${v.id}`;
+    input.placeholder = v.default || "";
+    input.value = v.default || "";
+    input.dataset.varId = v.id;
+    // Set initial
+    currentVariables[v.id] = v.default || "";
+
+    input.addEventListener("input", () => {
+      currentVariables[v.id] = input.value;
+      invalidateHandoff();
+      updatePreviewWithVars();
+    });
+
+    const hint = document.createElement("small");
+    hint.className = "small muted";
+    hint.textContent = `${v.type || "string"} • id: ${v.id}`;
+
+    row.append(label, input, hint);
+    container.append(row);
+  }
+}
+function updatePreviewWithVars() {
+  const iframe = $("#preview-frame");
+  if (!iframe || !html) return;
+  try {
+    // Inject variables into preview via script override
+    let previewHtml = html;
+    if (Object.keys(currentVariables).length > 0) {
+      const varsJson = JSON.stringify(currentVariables);
+      const injection = `<script>window.__hyperframes={getVariables:()=>${varsJson}};</script>`;
+      if (previewHtml.includes("</head>")) {
+        previewHtml = previewHtml.replace("</head>", injection + "</head>");
+      } else {
+        previewHtml = injection + previewHtml;
+      }
+    }
+    iframe.srcdoc = previewHtml;
+  } catch (e) {
+    console.warn("preview failed", e);
+  }
 }
 function setFile(text, name) {
-  // Clear the previous selection on errors, preventing stale-file submissions.
   clearFile();
   try {
     const parsed = validateComposition(text, policy);
     html = text;
     metadata = parsed;
+    const sizeMB = (parsed.bytes / (1024 * 1024)).toFixed(2);
+    const sizeLabel = parsed.bytes > 1024 * 1024 ? `${sizeMB} MB` : `${(parsed.bytes / 1024).toFixed(1)} KB`;
     $("#file-name").textContent = name;
     $("#file-detail").textContent =
-      `${(parsed.bytes / 1024).toFixed(1)} KB · ${parsed.width} × ${parsed.height} · ${parsed.duration}s`;
-    $("#dimensions").textContent = `${parsed.width} × ${parsed.height}`;
+      `${sizeLabel} · ${parsed.width} × ${parsed.height} · ${parsed.duration}s · ${parsed.variables?.length || 0} vars`;
+    $("#dimensions").textContent = `${parsed.width} × ${parsed.height} • ${Math.round((parsed.width * parsed.height)/1000000*10)/10}MP`;
+    $("#duration-display").textContent = `${parsed.duration}s / max ${policy.max_duration_seconds}s`;
     $("#dropzone").hidden = true;
     $("#file-summary").hidden = false;
+
+    // Preview
+    $("#preview-wrap").hidden = false;
+    $("#preview-frame").srcdoc = text;
+
+    // Variables
+    if (parsed.variables && parsed.variables.length) {
+      renderVariablesEditor(parsed.variables);
+    } else {
+      // Try extract via regex fallback
+      const vars = extractVariables(text);
+      if (vars.length) renderVariablesEditor(vars);
+    }
+
     if (!$("#title").value.trim())
       $("#title").value = name.replace(/\.html?$/i, "").slice(0, 100);
     message("#file-message");
@@ -145,7 +232,7 @@ async function readFile(file) {
   if (file.size > policy.max_html_bytes)
     return message(
       "#file-message",
-      `This pilot accepts files up to ${policy.max_html_bytes / 1024} KB.`,
+      `File is ${(file.size/1024/1024).toFixed(2)} MB, limit is ${policy.max_html_bytes / 1024 / 1024} MB in pro mode.`,
       true,
     );
   try {
@@ -154,19 +241,37 @@ async function readFile(file) {
   } catch {
     message(
       "#file-message",
-      "We couldn’t read that file. Please choose it again.",
+      "We couldn't read that file. Please choose it again.",
       true,
     );
   }
 }
 
+function updateProSummary() {
+  const el = $("#pro-summary");
+  if (!el) return;
+  const fps = $("#fps").value;
+  const quality = $("#quality").value;
+  const format = $("#format").value;
+  const varsCount = Object.keys(currentVariables).length;
+  el.innerHTML = `<strong>Pro settings:</strong> ${quality} quality • ${fps}fps • ${format.toUpperCase()} • ${varsCount} variable overrides • ${metadata?.width || 0}x${metadata?.height || 0} • private`;
+}
+
 function videoCard(release) {
   const assets = release.assets || [];
-  const video = assets.find(
+  // Prefer mp4, but accept webm/mov as well
+  let video = assets.find(
     (a) =>
-      /^video\.(mp4|webm|mov)$/.test(a.name) &&
+      /^video\.mp4$/.test(a.name) &&
       trustedAssetURL(a.browser_download_url, repo),
   );
+  if (!video) {
+    video = assets.find(
+      (a) =>
+        /^video\.(mp4|webm|mov)$/.test(a.name) &&
+        trustedAssetURL(a.browser_download_url, repo),
+    );
+  }
   if (!video) return null;
   const thumb = assets.find(
     (a) =>
@@ -181,19 +286,20 @@ function videoCard(release) {
   player.playsInline = true;
   player.src = video.browser_download_url;
   if (thumb) player.poster = thumb.browser_download_url;
-  player.setAttribute("aria-label", release.name || "Rendered video");
+  player.setAttribute("aria-label", release.name || "Pro rendered video");
   const meta = document.createElement("div");
   meta.className = "video-meta";
   const title = document.createElement("h3");
-  title.textContent = release.name || "Untitled video";
+  title.textContent = release.name || "Untitled pro video";
   const info = document.createElement("p");
   const date = new Date(release.published_at || release.created_at);
-  info.textContent = `${Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} · ${(video.size / (1024 * 1024)).toFixed(1)} MB · ${video.name.split(".").pop().toUpperCase()}`;
+  const format = video.name.split(".").pop().toUpperCase();
+  info.textContent = `${Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} · ${(video.size / (1024 * 1024)).toFixed(1)} MB · ${format} • Private`;
   const actions = document.createElement("div");
   actions.className = "video-actions";
   const download = document.createElement("a");
   download.className = "secondary";
-  download.textContent = "↓ Download video";
+  download.textContent = `↓ Download ${format}`;
   download.href = video.browser_download_url;
   download.setAttribute("download", "");
   const details = document.createElement("a");
@@ -202,7 +308,19 @@ function videoCard(release) {
   details.target = "_blank";
   details.rel = "noopener noreferrer";
   actions.append(download, details);
-  meta.append(title, info, actions);
+
+  // Show other formats if available
+  const otherFormats = assets.filter(a => /^video\.(webm|mov|mp4)$/.test(a.name) && a.name !== video.name && trustedAssetURL(a.browser_download_url, repo));
+  if (otherFormats.length) {
+    const otherDiv = document.createElement("div");
+    otherDiv.className = "small muted";
+    otherDiv.style.marginTop = "8px";
+    otherDiv.textContent = `Also available: ${otherFormats.map(f => f.name).join(", ")}`;
+    meta.append(title, info, actions, otherDiv);
+  } else {
+    meta.append(title, info, actions);
+  }
+
   card.append(player, meta);
   return card;
 }
@@ -217,7 +335,7 @@ async function loadGallery(reset = false) {
     $("#gallery").replaceChildren();
   }
   $("#gallery-empty").hidden = true;
-  message("#gallery-message", "Fetching the latest videos…");
+  message("#gallery-message", "Fetching private releases… (requires GitHub auth for private repo)");
   try {
     const releases = await api(`/releases?per_page=30&page=${galleryPage + 1}`);
     galleryPage++;
@@ -244,10 +362,10 @@ async function loadGallery(reset = false) {
       "#gallery-message",
       !seenReleases.size && releases.length === 30
         ? "No video releases on this page. Load more to look further back."
-        : "",
+        : seenReleases.size === 0 ? "No private videos found. Create your first pro video!" : "",
     );
   } catch (error) {
-    message("#gallery-message", friendlyError(error), true);
+    message("#gallery-message", friendlyError(error) + " For private repo, ensure you're logged into GitHub and have access. Or use Track page.", true);
   } finally {
     galleryBusy = false;
     $("#refresh-gallery").disabled = false;
@@ -262,7 +380,6 @@ async function statusComments(number) {
       `/issues/${number}/comments?per_page=100&page=${page}`,
     );
     all.push(...comments);
-    // Our single bot comment is patched in place, so don't keep paginating once found.
     if (parseStatus(all) || comments.length < 100) return all;
   }
   throw new Error(
@@ -271,9 +388,9 @@ async function statusComments(number) {
 }
 function paintStatus(state) {
   const labels = {
-    queued: "Queued",
-    creating: "Creating video",
-    ready: "Ready",
+    queued: "Queued • Pro",
+    creating: "Creating video • 4CPU/8GB",
+    ready: "Ready • Private",
     rejected: "Not accepted",
     failed: "Needs attention",
     waiting: "Waiting for review",
@@ -301,7 +418,7 @@ async function refreshTracking(epoch) {
       );
     $("#tracking-result").hidden = false;
     $("#tracking-title").textContent =
-      issue.title.replace(/^\[Video\]\s*/, "") || `Request #${number}`;
+      issue.title.replace(/^\[Video\]\s*/, "") || `Pro Request #${number}`;
     $("#tracking-issue").href = `${repoURL}/issues/${number}`;
     saveRecent(number);
     const comments = await statusComments(number);
@@ -312,8 +429,8 @@ async function refreshTracking(epoch) {
         status: "waiting",
         message:
           issue.state === "closed"
-            ? "This request was closed without a published status. Please ask the owner to check it."
-            : "Waiting for GitHub to check your request. Only approved pilot accounts can render. If this does not change, ask the owner to check the workflow.",
+            ? "This request was closed without a published status. Check Actions tab."
+            : "Waiting for GitHub to check your pro request. Private mode has no approval needed. If stuck, check Actions workflow is enabled on default branch.",
       };
     paintStatus(state);
     message("#track-message");
@@ -325,7 +442,7 @@ async function refreshTracking(epoch) {
       const card = videoCard(release);
       if (!card)
         throw new Error(
-          "The video file is not available. Please check the release or ask the owner.",
+          "The video file is not available. Please check the private release or ask the owner.",
         );
       $("#tracking-video").replaceChildren(card);
       return;
@@ -349,7 +466,6 @@ async function refreshTracking(epoch) {
         friendlyError(error) + " Click Find video to retry.",
         true,
       );
-    // Stop rather than repeatedly hammering a rate-limited/offline API.
   } finally {
     if (epoch === trackEpoch) $("#track-request").disabled = false;
   }
@@ -363,7 +479,7 @@ function startTracking() {
     trackingNumber = parseIssueInput($("#request-link").value, repo);
     pollStarted = Date.now();
     $("#track-request").disabled = true;
-    message("#track-message", "Looking up your request…");
+    message("#track-message", "Looking up your pro request…");
     history.replaceState(null, "", `#track/${trackingNumber}`);
     refreshTracking(trackEpoch);
   } catch (error) {
@@ -395,15 +511,15 @@ function navigate() {
   }
 }
 $("#repository-link").href = repoURL;
-$("#pilot-info").href =
-  `${repoURL}/issues/new?title=${encodeURIComponent("Pilot access request")}&body=${encodeURIComponent("I would like to join the free video-rendering pilot. Please approve my GitHub account.")}`;
+$("#pilot-info").href = repoURL;
 $("#pilot-info").target = "_blank";
 $("#pilot-info").rel = "noopener noreferrer";
 $("#file-limit").textContent =
-  `HyperFrames HTML · up to ${policy.max_html_bytes / 1024} KB · up to ${policy.max_duration_seconds} seconds`;
-$("#quota-note").textContent = policy.enabled
-  ? `Free pilot · ${policy.per_user_daily} requests per person / day · ${policy.global_daily} total / day`
-  : "The pilot is currently paused. You can still explore the gallery.";
+  `HyperFrames HTML · up to ${policy.max_html_bytes / 1024 / 1024} MB · up to ${policy.max_duration_seconds / 60} minutes · 4K ready`;
+$("#quota-note").textContent = policy.private_mode
+  ? `Private • Unlimited (1000/day soft) • 4K • 60fps • High • Network enabled • ${policy.allow_external_assets ? "External assets OK" : ""}`
+  : `Free pilot · ${policy.per_user_daily} requests per person / day · ${policy.global_daily} total / day`;
+
 $("#dropzone").addEventListener("click", () => $("#file").click());
 $("#file").addEventListener("change", (event) =>
   readFile(event.target.files[0]),
@@ -414,7 +530,6 @@ for (const type of ["dragover", "dragleave", "drop"])
     $("#dropzone").classList.toggle("dragging", type === "dragover");
     if (type === "drop") readFile(event.dataTransfer.files[0]);
   });
-// Never let dropping an HTML file elsewhere navigate the studio to it.
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("drop", (event) => event.preventDefault());
 $("#remove-file").addEventListener("click", () => {
@@ -424,6 +539,11 @@ $("#remove-file").addEventListener("click", () => {
 });
 $("#title").addEventListener("input", invalidateHandoff);
 $("#consent").addEventListener("change", invalidateHandoff);
+$("#quality").addEventListener("change", invalidateHandoff);
+$("#fps").addEventListener("change", invalidateHandoff);
+$("#format").addEventListener("change", invalidateHandoff);
+$("#resolution").addEventListener("change", invalidateHandoff);
+
 $("#load-example").addEventListener("click", async () => {
   const epoch = ++fileEpoch;
   $("#load-example").disabled = true;
@@ -433,7 +553,7 @@ $("#load-example").addEventListener("click", async () => {
       throw new Error("The example could not be loaded. Please try again.");
     const text = await response.text();
     if (epoch === fileEpoch) {
-      $("#title").value = "My product launch";
+      $("#title").value = "My product launch - pro";
       setFile(text, "product-launch.html");
     }
   } catch (error) {
@@ -445,16 +565,22 @@ $("#load-example").addEventListener("click", async () => {
 $("#prepare").addEventListener("click", () => {
   if (!metadata || !$("#consent").checked || !policy.enabled) return;
   try {
-    const packet = encodePacket(html, $("#title").value);
+    const options = {
+      fps: $("#fps").value,
+      quality: $("#quality").value,
+      format: $("#format").value,
+      resolution: $("#resolution").value,
+      variables: currentVariables,
+    };
+    const packet = encodePacket(html, $("#title").value, options);
     $("#request-packet").value = packet;
-    // Only a short title enters the URL. The large HTML packet uses the clipboard,
-    // avoiding URL-length limits, proxy logs, and silent truncation.
     const params = new URLSearchParams({
       template: "render-video.yml",
       title: `[Video] ${$("#title").value.trim()}`,
     });
     $("#submit-request").href = `${repoURL}/issues/new?${params}`;
     $("#handoff").hidden = false;
+    updateProSummary();
     $("#copy-request").focus();
   } catch (error) {
     message("#file-message", error.message, true);
@@ -464,13 +590,13 @@ $("#copy-request").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText($("#request-packet").value);
     $("#copy-message").textContent =
-      "Copied! Now open the GitHub form and paste your request.";
+      "Copied pro request! Now open the GitHub form and paste it.";
   } catch {
     $("#handoff details").open = true;
     $("#request-packet").focus();
     $("#request-packet").select();
     $("#copy-message").textContent =
-      "Clipboard access is blocked. Copy the selected request using your device’s copy command.";
+      "Clipboard blocked. Copy manually using your device's copy command.";
   }
 });
 $("#refresh-gallery").addEventListener("click", () => loadGallery(true));
@@ -486,14 +612,11 @@ $("#clear-history").addEventListener("click", () => {
   drawRecent();
 });
 window.addEventListener("hashchange", navigate);
-// Remove obsolete credentials from versions of the technical composer, if present.
 for (const store of ["localStorage", "sessionStorage"]) {
   try {
     for (const key of Object.keys(window[store]))
       if (key === "hfgh_token" || /^hf[.:_-].*(token|pat)/i.test(key))
         window[store].removeItem(key);
-  } catch {
-    /* storage disabled */
-  }
+  } catch {}
 }
 navigate();

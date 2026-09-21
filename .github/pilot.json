@@ -1,10 +1,17 @@
 {
   "enabled": true,
+  "private_mode": true,
   "approved_users": ["sheerazautomate"],
-  "per_user_daily": 2,
-  "global_daily": 10,
-  "max_html_bytes": 24576,
-  "max_duration_seconds": 30,
-  "max_dimension": 1920,
-  "max_pixels": 2073600
+  "per_user_daily": 1000,
+  "global_daily": 1000,
+  "max_html_bytes": 10485760,
+  "max_duration_seconds": 600,
+  "max_dimension": 4096,
+  "max_pixels": 16777216,
+  "max_fps": 60,
+  "max_output_bytes": 2147483648,
+  "allowed_formats": ["mp4", "webm", "mov"],
+  "allowed_qualities": ["draft", "standard", "high"],
+  "allow_external_assets": true,
+  "allow_network": true
 }

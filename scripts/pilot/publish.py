@@ -1,4 +1,4 @@
-"""Publish media in a fresh runner that has never executed the composition."""
+"""Publish media in a fresh runner - personal pro version with full format support."""
 import json
 import os
 from pathlib import Path
@@ -10,23 +10,48 @@ api = GitHub()
 meta = json.loads(Path("build/request/manifest.json").read_text())
 number = int(meta["issue"])
 tag = f"video-pilot-{number}"
-notes = (f"Public pilot video submitted by @{meta['author']}.\n\n"
+
+fps = meta.get("fps", 30)
+quality = meta.get("quality", "standard")
+fmt = meta.get("format", "mp4")
+duration = meta.get("duration", 0)
+width = meta.get("width", 0)
+height = meta.get("height", 0)
+variables = meta.get("variables", {})
+
+# Private release notes
+vars_note = ""
+if variables:
+    vars_note = f"\nVariables: {json.dumps(variables)[:500]}\n"
+
+notes = (f"Personal pro render by @{meta['author']}.\n\n"
          f"Request: https://github.com/{api.repo}/issues/{number}\n\n"
-         f"MP4 · 30 fps · {meta['width']} × {meta['height']} · {meta['duration']:g} seconds\n\n"
-         f"{meta['run_url']}\n\nSource HTML is public in the original request. Treat it as untrusted code.")
+         f"Pro settings: {fmt.upper()} · {fps} fps · {quality} quality · {width} × {height} · {duration:g}s\n"
+         f"{vars_note}\n"
+         f"{meta['run_url']}\n\n"
+         f"Private personal tool output. Full throttle HyperFrames.\n")
+
 Path("build/notes.md").write_text(notes, encoding="utf-8")
-assets = ["build/media/video.mp4"]
-if Path("build/media/thumbnail.jpg").is_file():
-    assets.append("build/media/thumbnail.jpg")
+
+assets = []
+for name in ["video.mp4", "video.webm", "video.mov", "thumbnail.jpg"]:
+    p = Path(f"build/media/{name}")
+    if p.is_file():
+        assets.append(str(p))
+
+if not assets:
+    raise RuntimeError("No media assets to publish")
+
 # No source HTML served from the site's origin; no commands built from user text.
 subprocess.run(["gh", "release", "create", tag, *assets, "--repo", api.repo,
                 "--target", os.environ["GITHUB_SHA"], "--title", meta["title"],
                 "--notes-file", "build/notes.md", "--latest=false"], check=True, timeout=180)
+
 api.request(f"issues/comments/{int(meta['comment'])}", "PATCH", {"body": state_body(
-    "ready", "Your video is ready to watch and download in the studio.",
+    "ready", f"Your pro video is ready! {width}x{height}, {fps}fps, {quality}, {fmt.upper()}. Watch and download in the studio.",
     tag=tag, run_url=meta["run_url"])})
-# Publishing and the ready status succeeded. Closing is convenience, not a
-# reason to mark a successfully published video as failed.
+
+# Closing is convenience
 try:
     api.request(f"issues/{number}", "PATCH", {"state": "closed", "state_reason": "completed"})
 except Exception:

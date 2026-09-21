@@ -1,4 +1,4 @@
-"""Validate an issue-opened snapshot, reserve admission, and stage a project.
+"""Personal tool admission - private mode, unlimited, full throttle.
 
 Only this job needs issue-write; it never executes HTML or invokes a browser.
 """
@@ -25,20 +25,32 @@ def admit(api, event, policy, destination):
     prior = [c for c in comments if c["user"]["login"] == "github-actions[bot]"
              and c["user"]["type"] == "Bot" and c.get("body", "").startswith(MARKER)]
     if prior:
-        # Also prevents Actions reruns from consuming a second render slot.
         return None
     try:
         if not policy["enabled"]:
-            raise InvalidRequest("The pilot is paused. Please try again when submissions reopen.")
-        if issue["user"]["login"].lower() not in {u.lower() for u in policy["approved_users"]}:
-            raise InvalidRequest("This account is not approved for the pilot yet. Ask the repository owner for access, then submit a new request.")
+            raise InvalidRequest("Rendering is paused. Re-enable in pilot.json.")
+
+        # Private mode: skip approval check, allow owner or any if private_mode
+        if not policy.get("private_mode"):
+            # Legacy approval check for public pilot, but in personal tool we allow all
+            approved = {u.lower() for u in policy.get("approved_users", [])}
+            if approved and issue["user"]["login"].lower() not in approved:
+                raise InvalidRequest("This account is not approved. In private mode, add your username to approved_users or enable private_mode.")
+
         current = api.request(f"issues/{number}")
         if current["state"] != "open" or current.get("body") != issue.get("body"):
             raise InvalidRequest("This request was closed or edited before processing. Please submit a new request from the studio.")
-        from urllib.parse import quote
-        since = quote(issue["created_at"][:10] + "T00:00:00Z")
-        issues = api.pages(f"issues?state=all&since={since}&sort=created&direction=asc")
-        enforce_quota(issue, issues, policy)
+
+        # Quota - skipped in private_mode inside enforce_quota
+        if not policy.get("private_mode"):
+            from urllib.parse import quote
+            since = quote(issue["created_at"][:10] + "T00:00:00Z")
+            issues = api.pages(f"issues?state=all&since={since}&sort=created&direction=asc")
+            enforce_quota(issue, issues, policy)
+        else:
+            # Still call enforce_quota but it will no-op in private_mode
+            enforce_quota(issue, [], policy)
+
         packet = parse_request(issue.get("body") or "", policy)
     except InvalidRequest as exc:
         api.request(f"issues/{number}/comments", "POST", {"body": state_body("rejected", str(exc))})
@@ -46,9 +58,12 @@ def admit(api, event, policy, destination):
     run_id = os.environ["GITHUB_RUN_ID"]
     run_url = f"https://github.com/{api.repo}/actions/runs/{run_id}"
     comment = api.request(f"issues/{number}/comments", "POST", {"body": state_body(
-        "queued", "Your request is accepted. We are preparing the video renderer.", run_url=run_url)})
+        "queued", f"Accepted: {packet['width']}x{packet['height']}, {packet['duration']}s, {packet['fps']}fps, {packet['quality']} quality, {packet['format']}. Preparing pro renderer.", run_url=run_url)})
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "index.html").write_text(packet.pop("html"), encoding="utf-8")
+    # Write variables as separate file for renderer
+    variables = packet.get("variables", {})
+    (destination / "variables.json").write_text(json.dumps(variables), encoding="utf-8")
     meta = {**packet, "issue": number, "author": issue["user"]["login"],
             "comment": int(comment["id"]), "run_id": run_id, "run_url": run_url}
     (destination / "manifest.json").write_text(json.dumps(meta), encoding="utf-8")
