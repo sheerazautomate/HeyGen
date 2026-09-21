@@ -1,0 +1,276 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"brand","label":"Brand","type":"string","default":"PULSE"},
+    {"id":"tagline","label":"Tagline","type":"string","default":"Your day, in motion"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Pulse — vertical teaser</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@hyperframes/core/dist/hyperframe.runtime.iife.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;600;800&family=IBM+Plex+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --ink: #191410;
+        --accent: #e8442e;
+        --deep: #1d2b1f;
+        --muted: #6f675c;
+        --font-display: "Sora", sans-serif;
+        --font-data: "IBM Plex Mono", monospace;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      html, body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-display);
+      }
+
+      .scene {
+        position: absolute;
+        top: 0; left: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+      }
+
+      .scene-content {
+        width: 100%;
+        height: 100%;
+        padding: 140px 90px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 36px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .tag {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        gap: 16px;
+        font-family: var(--font-data);
+        font-size: 30px;
+        letter-spacing: 0.18em;
+        padding: 18px 34px;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+      }
+
+      .display {
+        font-weight: 800;
+        font-size: 128px;
+        line-height: 1.04;
+        letter-spacing: -0.025em;
+      }
+      .display .hl {
+        color: var(--bg);
+        background: var(--accent);
+        padding: 0 22px;
+        border-radius: 14px;
+        display: inline-block;
+      }
+
+      .body {
+        font-weight: 300;
+        font-size: 40px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        z-index: 0;
+      }
+      .blob-a { width: 640px; height: 640px; background: #f7b32b; opacity: 0.5; top: -120px; right: -180px; }
+      .blob-b { width: 560px; height: 560px; background: #7cb518; opacity: 0.4; bottom: 220px; left: -200px; }
+
+      .ring {
+        position: absolute;
+        border: 4px solid var(--ink);
+        border-radius: 50%;
+        opacity: 0.14;
+        z-index: 1;
+      }
+      .ring-1 { width: 900px; height: 900px; top: 260px; right: -320px; }
+      .ring-2 { width: 520px; height: 520px; bottom: 420px; right: 120px; }
+
+      .grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 50;
+        opacity: 0.14;
+        background-image:
+          radial-gradient(rgba(0, 0, 0, 0.22) 1px, transparent 1.2px);
+        background-size: 4px 4px;
+        mix-blend-mode: multiply;
+      }
+
+      /* scene 2 checklist */
+      .checks { display: flex; flex-direction: column; gap: 30px; margin-top: 20px; }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        background: #fffdf8;
+        border: 3px solid var(--ink);
+        border-radius: 26px;
+        padding: 38px 42px;
+        box-shadow: 10px 10px 0 var(--ink);
+      }
+      .check i {
+        width: 64px; height: 64px;
+        flex: 0 0 64px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fffdf8;
+        font-style: normal;
+        font-weight: 800;
+        font-size: 36px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .check span { font-size: 40px; font-weight: 600; }
+
+      /* scene 3 */
+      .logo {
+        font-weight: 800;
+        font-size: 96px;
+        letter-spacing: 0.1em;
+      }
+      .logo b { color: var(--accent); }
+      .qr-card {
+        align-self: flex-start;
+        background: var(--deep);
+        color: #f4f1ea;
+        font-family: var(--font-data);
+        font-size: 34px;
+        padding: 34px 44px;
+        border-radius: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="main"
+      data-composition-id="main"
+      data-width="1080"
+      data-height="1920"
+      data-start="0"
+      data-duration="9"
+    >
+      <!-- SCENE 1 · hook (0–3s) -->
+      <div class="scene clip" id="s1" data-start="0" data-duration="3" data-track-index="0">
+        <div class="blob blob-a"></div>
+        <div class="blob blob-b"></div>
+        <div class="ring ring-1"></div>
+        <div class="grain"></div>
+        <div class="scene-content">
+          <div id="s1-tag" class="tag">● <span id="s1-brand">PULSE</span></div>
+          <h1 id="s1-headline" class="display">Your day,<br />in <span class="hl">motion</span></h1>
+          <p id="s1-body" class="body">One template in. A scroll-stopping teaser out.</p>
+        </div>
+      </div>
+
+      <!-- SCENE 2 · features (3–6s) -->
+      <div class="scene clip" id="s2" data-start="3" data-duration="3" data-track-index="0" style="visibility: hidden">
+        <div class="blob blob-a" style="opacity: 0.3"></div>
+        <div class="ring ring-2"></div>
+        <div class="grain"></div>
+        <div class="scene-content">
+          <div id="s2-tag" class="tag">● What you get</div>
+          <h2 id="s2-headline" class="display" style="font-size: 96px">Made for the feed</h2>
+          <div class="checks">
+            <div class="check" id="s2-c1"><i>1</i><span>1080 × 1920 vertical canvas</span></div>
+            <div class="check" id="s2-c2"><i>2</i><span>Deterministic frame renders</span></div>
+            <div class="check" id="s2-c3"><i>3</i><span>Publishes straight to a release</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 3 · CTA (6–9s) -->
+      <div class="scene clip" id="s3" data-start="6" data-duration="3" data-track-index="0" style="visibility: hidden">
+        <div class="blob blob-b" style="opacity: 0.45"></div>
+        <div class="ring ring-1" style="top: auto; bottom: -260px; right: -260px;"></div>
+        <div class="grain"></div>
+        <div class="scene-content" id="s3-content">
+          <div id="s3-logo" class="logo"><b>●</b> <span id="s3-brand">PULSE</span></div>
+          <h2 id="s3-headline" class="display" style="font-size: 110px">Make your first<br />teaser <span class="hl">today</span></h2>
+          <p id="s3-tagline" class="body">Your day, in motion</p>
+          <div id="s3-card" class="qr-card">pulse.app/start</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (function () {
+        var vars = { brand: "PULSE", tagline: "Your day, in motion" };
+        try {
+          if (window.__hyperframes && typeof window.__hyperframes.getVariables === "function") {
+            vars = Object.assign(vars, window.__hyperframes.getVariables());
+          }
+        } catch (e) {}
+
+        var byId = function (id) { return document.getElementById(id); };
+        if (byId("s1-brand")) byId("s1-brand").textContent = vars.brand;
+        if (byId("s3-brand")) byId("s3-brand").textContent = vars.brand;
+        if (byId("s3-tagline")) byId("s3-tagline").textContent = vars.tagline;
+
+        var tl = gsap.timeline({ paused: true });
+
+        // ---- Scene toggles (hard cuts) ----
+        tl.set("#s1", { autoAlpha: 0 }, 3.0);
+        tl.set("#s2", { autoAlpha: 1 }, 3.0);
+        tl.set("#s2", { autoAlpha: 0 }, 6.0);
+        tl.set("#s3", { autoAlpha: 1 }, 6.0);
+
+        // === SCENE 1 (0–3s) ===
+        tl.from("#s1-tag", { y: 40, autoAlpha: 0, duration: 0.5, ease: "power2.out" }, 0.2);
+        tl.from("#s1-headline", { y: 70, autoAlpha: 0, duration: 0.7, ease: "expo.out" }, 0.4);
+        tl.from("#s1 .hl", { scale: 0.7, autoAlpha: 0, duration: 0.55, ease: "back.out(1.8)", transformOrigin: "left center" }, 0.8);
+        tl.from("#s1-body", { y: 36, autoAlpha: 0, duration: 0.5, ease: "power2.out" }, 1.05);
+        tl.to("#s1 .blob-a", { x: -50, y: 46, duration: 1.2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0.3);
+        tl.to("#s1 .ring-1", { rotate: 14, duration: 1.3, ease: "sine.inOut", transformOrigin: "center" }, 0.4);
+        tl.to("#s1-headline", { scale: 1.02, duration: 1.0, ease: "sine.inOut", yoyo: true, repeat: 1, transformOrigin: "left center" }, 1.4);
+
+        // === SCENE 2 (3–6s) ===
+        tl.from("#s2-tag", { y: 30, autoAlpha: 0, duration: 0.45, ease: "power2.out" }, 3.2);
+        tl.from("#s2-headline", { y: 50, autoAlpha: 0, duration: 0.6, ease: "expo.out" }, 3.35);
+        tl.from("#s2-c1", { x: -80, autoAlpha: 0, duration: 0.5, ease: "back.out(1.4)" }, 3.7);
+        tl.from("#s2-c2", { x: -80, autoAlpha: 0, duration: 0.5, ease: "back.out(1.4)" }, 3.95);
+        tl.from("#s2-c3", { x: -80, autoAlpha: 0, duration: 0.5, ease: "back.out(1.4)" }, 4.2);
+        tl.to("#s2-c2", { x: 12, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: 1 }, 4.9);
+        tl.to("#s2 .ring-2", { scale: 1.12, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: 1, transformOrigin: "center" }, 4.6);
+
+        // === SCENE 3 (6–9s) — final scene may exit ===
+        tl.from("#s3-logo", { y: 34, autoAlpha: 0, duration: 0.5, ease: "power2.out" }, 6.2);
+        tl.from("#s3-headline", { y: 60, autoAlpha: 0, duration: 0.65, ease: "expo.out" }, 6.4);
+        tl.from("#s3-tagline", { y: 30, autoAlpha: 0, duration: 0.45, ease: "power2.out" }, 6.85);
+        tl.from("#s3-card", { scale: 0.8, autoAlpha: 0, duration: 0.5, ease: "back.out(1.6)", transformOrigin: "left center" }, 7.1);
+        tl.to("#s3-card", { rotate: 2.5, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: 3 }, 7.6);
+        tl.to("#s3-content", { autoAlpha: 0, y: -40, duration: 0.5, ease: "power2.in" }, 8.5);
+
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  </body>
+</html>

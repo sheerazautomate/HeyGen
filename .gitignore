@@ -1,0 +1,14 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
+
+# Local tooling
+node_modules/
+__pycache__/
+*.pyc
+
+# Local build output (renders live in Releases, not Git)
+out/
+build/
+renders/

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HyperFrames Studio → GitHub Actions</title>
+    <meta
+      name="description"
+      content="Paste a HeyGen HyperFrames composition, trigger a GitHub Actions render, and get your video as a GitHub Release."
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🎬%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#composer" data-tab="composer">
+          <span class="brand-mark">▶</span>
+          <span class="brand-text">
+            <strong>HyperFrames</strong> → Actions
+            <small>HTML in&nbsp;· video out, via GitHub</small>
+          </span>
+        </a>
+        <nav class="tabs" role="tablist">
+          <a href="#composer" class="tab active" data-tab="composer" role="tab">Composer</a>
+          <a href="#videos" class="tab" data-tab="videos" role="tab">Videos <span id="videos-count" class="pill" hidden></span></a>
+          <a href="#guide" class="tab" data-tab="guide" role="tab">Guide</a>
+        </nav>
+        <div class="topbar-right">
+          <span id="repo-chip" class="repo-chip" title="Active repository">
+            <span class="dot"></span><span id="repo-chip-text">not configured</span>
+          </span>
+          <a id="repo-link" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" hidden>Open repo ↗</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- ============================================================ -->
+      <!-- COMPOSER                                                     -->
+      <!-- ============================================================ -->
+      <section id="panel-composer" class="panel active">
+        <div class="flow-strip">
+          <span>Paste <code>script.html</code></span>
+          <span class="arrow">→</span>
+          <span>git blob + <code>repository_dispatch</code></span>
+          <span class="arrow">→</span>
+          <span>GitHub Actions renders</span>
+          <span class="arrow">→</span>
+          <span>video published as a <strong>Release</strong></span>
+          <span class="arrow">→</span>
+          <span>watch it in <a href="#videos" data-tab="videos">Videos</a></span>
+        </div>
+
+        <div class="grid-composer">
+          <!-- ------------------------------------------------ connection -->
+          <section class="card" id="card-connection">
+            <header class="card-head">
+              <h2><span class="step-num">1</span> GitHub connection</h2>
+              <span id="conn-status" class="chip chip-warn">not connected</span>
+            </header>
+            <div class="card-body">
+              <div class="row two">
+                <label>
+                  <span>Owner</span>
+                  <input id="in-owner" type="text" placeholder="your-org" autocomplete="off" spellcheck="false" />
+                </label>
+                <label>
+                  <span>Repository</span>
+                  <input id="in-repo" type="text" placeholder="HeyGen" autocomplete="off" spellcheck="false" />
+                </label>
+              </div>
+              <label class="stack">
+                <span>Personal access token <em class="req">required to trigger renders</em></span>
+                <input id="in-pat" type="password" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false" />
+              </label>
+              <div class="row between wrap">
+                <label class="check">
+                  <input id="in-remember" type="checkbox" />
+                  <span>Remember on this device <small>(else session only)</small></span>
+                </label>
+                <div class="row gap">
+                  <button id="btn-verify" class="btn btn-ghost btn-sm">Verify</button>
+                  <button id="btn-forget" class="btn btn-ghost btn-sm" hidden>Forget token</button>
+                </div>
+              </div>
+              <p id="conn-msg" class="note" hidden></p>
+              <details class="help">
+                <summary>How do I create a token?</summary>
+                <ol>
+                  <li>
+                    Open
+                    <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener"
+                      >Settings → Developer settings → Fine-grained tokens</a
+                    >.
+                  </li>
+                  <li>
+                    Repository access: <strong>only this repo</strong>. Permissions:
+                    <strong>Contents → Read and write</strong> (creates the blob + dispatch) and
+                    <strong>Actions → Read-only</strong> (lets this page show run status).
+                  </li>
+                  <li>Classic tokens also work: the <code>repo</code> scope covers everything.</li>
+                  <li>Paste it above. It is stored only in <em>your browser</em> and sent only to <code>api.github.com</code>.</li>
+                </ol>
+              </details>
+            </div>
+          </section>
+
+          <!-- ----------------------------------------------- composition -->
+          <section class="card" id="card-composition">
+            <header class="card-head">
+              <h2><span class="step-num">2</span> Composition <code class="dim">script.html</code></h2>
+              <div class="row gap">
+                <select id="sel-example" class="select select-sm">
+                  <option value="">Load example…</option>
+                  <option value="examples/product-launch.html">Product launch · 16:9</option>
+                  <option value="examples/vertical-teaser.html">Vertical teaser · 9:16</option>
+                </select>
+                <button id="btn-upload" class="btn btn-ghost btn-sm">Upload .html</button>
+                <input id="in-file" type="file" accept=".html,.htm,text/html" hidden />
+                <button id="btn-preview" class="btn btn-ghost btn-sm">▶ Preview</button>
+              </div>
+            </header>
+            <div class="card-body">
+              <div id="editor-wrap">
+                <textarea
+                  id="in-html"
+                  class="editor"
+                  spellcheck="false"
+                  placeholder="<!doctype html>&#10;<html data-composition-variables='[…]'>…&#10;Paste your HyperFrames composition here, or load an example."
+                ></textarea>
+                <div class="editor-foot">
+                  <span id="html-stats">0 bytes</span>
+                  <span id="html-checks" class="checks-line"></span>
+                </div>
+              </div>
+              <div id="preview-wrap" class="preview-wrap" hidden>
+                <div class="preview-head">
+                  <span>Live preview <small>runs in your browser with the real HyperFrames player</small></span>
+                  <button id="btn-close-preview" class="btn btn-ghost btn-sm">✕</button>
+                </div>
+                <div id="player-box" class="player-box ratio-16-9"></div>
+              </div>
+              <p id="comp-msg" class="note" hidden></p>
+            </div>
+          </section>
+
+          <!-- -------------------------------------------------- settings -->
+          <section class="card" id="card-settings">
+            <header class="card-head">
+              <h2><span class="step-num">3</span> Render settings</h2>
+              <a class="chip chip-info" href="#guide" data-tab="guide">engines &amp; secrets →</a>
+            </header>
+            <div class="card-body">
+              <label class="stack">
+                <span>Video title</span>
+                <input id="in-title" type="text" placeholder="Product launch teaser" maxlength="180" />
+              </label>
+              <div class="row wrap">
+                <label>
+                  <span>Engine</span>
+                  <select id="in-engine" class="select">
+                    <option value="auto">Auto (cloud if HEYGEN_API_KEY is set)</option>
+                    <option value="heygen-cloud">HeyGen cloud rendering</option>
+                    <option value="local">Render in the Actions runner</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Format</span>
+                  <select id="in-format" class="select">
+                    <option value="mp4">mp4</option>
+                    <option value="webm">webm (alpha)</option>
+                    <option value="mov">mov (alpha)</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Quality</span>
+                  <select id="in-quality" class="select">
+                    <option value="draft">draft (fast)</option>
+                    <option value="standard" selected>standard</option>
+                    <option value="high">high</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Resolution</span>
+                  <select id="in-resolution" class="select">
+                    <option value="1080p">1080p</option>
+                    <option value="4k">4k</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Aspect ratio <small>(cloud)</small></span>
+                  <select id="in-aspect" class="select">
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                  </select>
+                </label>
+                <label>
+                  <span>FPS</span>
+                  <input id="in-fps" type="number" min="1" max="240" step="1" value="30" />
+                </label>
+              </div>
+              <details class="help">
+                <summary>Advanced · composition variables (JSON)</summary>
+                <label class="stack">
+                  <span
+                    >Passed to <code>variables</code> at render time — overrides
+                    <code>data-composition-variables</code> defaults.</span
+                  >
+                  <textarea id="in-vars" class="editor editor-sm" spellcheck="false" placeholder='{"headline": "Q3 wins", "product": "ACME"}'></textarea>
+                </label>
+              </details>
+              <label class="check">
+                <input id="in-lint" type="checkbox" checked />
+                <span>Lint with <code>hyperframes lint</code> before rendering</span>
+              </label>
+              <div class="row between wrap">
+                <button id="btn-render" class="btn btn-primary btn-lg">🚀 Render video with GitHub Actions</button>
+                <span id="render-eta" class="dim">~1–6 min typical</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- -------------------------------------------- render progress -->
+          <section class="card card-span" id="card-progress" hidden>
+            <header class="card-head">
+              <h2>Render progress</h2>
+              <span id="run-state" class="chip chip-warn">starting…</span>
+            </header>
+            <div class="card-body">
+              <ol id="progress-steps" class="steps">
+                <li data-step="blob"><span class="bullet"></span>Upload composition as a git blob</li>
+                <li data-step="dispatch"><span class="bullet"></span>Trigger <code>render-video</code> workflow</li>
+                <li data-step="run"><span class="bullet"></span>Locate the Actions run</li>
+                <li data-step="render"><span class="bullet"></span>HyperFrames render</li>
+                <li data-step="release"><span class="bullet"></span>Publish release</li>
+              </ol>
+              <p id="progress-msg" class="note" hidden></p>
+              <div class="row gap wrap" id="progress-links" hidden>
+                <a id="link-run" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener">Watch on Actions ↗</a>
+                <a id="link-release" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" hidden>Open release ↗</a>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VIDEOS                                                       -->
+      <!-- ============================================================ -->
+      <section id="panel-videos" class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Rendered videos</h2>
+            <p class="dim">GitHub Releases tagged <code>video-*</code> — every render of this repository.</p>
+          </div>
+          <button id="btn-refresh" class="btn btn-ghost">↻ Refresh</button>
+        </div>
+        <p id="videos-msg" class="note" hidden></p>
+        <div id="videos-grid" class="video-grid"></div>
+        <div id="videos-empty" class="empty" hidden>
+          <div class="empty-art">🎬</div>
+          <h3>No renders yet</h3>
+          <p>
+            Head to the <a href="#composer" data-tab="composer">Composer</a>, load an example, and hit
+            <em>Render video</em>. Finished videos land here as GitHub Releases.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- GUIDE                                                        -->
+      <!-- ============================================================ -->
+      <section id="panel-guide" class="panel">
+        <div class="section-head"><h2>Setup guide</h2></div>
+        <div class="guide">
+          <div class="card">
+            <header class="card-head"><h2><span class="step-num">1</span> Enable GitHub Pages</h2></header>
+            <div class="card-body">
+              <p>
+                In your repository: <strong>Settings → Pages</strong> → under <em>Build and deployment</em>, set
+                <strong>Source = GitHub Actions</strong>. Then run
+                <em>Actions → Deploy site to GitHub Pages → Run workflow</em> (it also runs on every push to
+                <code>main</code> that touches <code>site/</code> or <code>examples/</code>).
+              </p>
+            </div>
+          </div>
+          <div class="card">
+            <header class="card-head"><h2><span class="step-num">2</span> Choose a render engine</h2></header>
+            <div class="card-body">
+              <ul class="plain">
+                <li>
+                  <strong>HeyGen cloud</strong> (default when available): add your API key as the repository secret
+                  <code>HEYGEN_API_KEY</code> under <em>Settings → Secrets and variables → Actions</em>. Renders run on
+                  HeyGen's infrastructure via <code>POST /v3/hyperframes/renders</code>. Get a key from the
+                  <a href="https://app.heygen.com/developers/api" target="_blank" rel="noopener">HeyGen API dashboard</a>.
+                </li>
+                <li>
+                  <strong>Runner render</strong> (fallback, free, no key): the workflow renders inside GitHub Actions
+                  with the open-source <code>hyperframes</code> CLI (headless Chrome + FFmpeg on the runner).
+                </li>
+                <li>Engine <strong>auto</strong> = cloud when the secret exists, otherwise runner.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="card">
+            <header class="card-head"><h2><span class="step-num">3</span> Create a browser token</h2></header>
+            <div class="card-body">
+              <p>
+                The page needs a personal access token to (a) upload your HTML as a git blob and (b) dispatch the
+                <code>render-video</code> workflow. A fine-grained token with
+                <strong>Contents: Read and write</strong> + <strong>Actions: Read-only</strong> on this one repository
+                is the least-privilege choice. Paste it in the Composer tab — it never leaves your browser except to
+                <code>api.github.com</code>.
+              </p>
+            </div>
+          </div>
+          <div class="card">
+            <header class="card-head"><h2>How a render flows</h2></header>
+            <div class="card-body">
+              <pre class="flow">browser (this page)
+  POST /repos/{owner}/{repo}/git/blobs          ← script.html as a git blob
+  POST /repos/{owner}/{repo}/dispatches         ← event: render-video (blob sha + settings)
+        │
+        ▼
+GitHub Actions · “Render HyperFrames video”
+  prepare:  fetch blob → build/project/index.html   (lint: hyperframes lint)
+  render:   A) HeyGen cloud  — zip → POST /v3/hyperframes/renders → poll → download
+            B) runner       — npx hyperframes render (headless Chrome + FFmpeg)
+  publish:  gh release create video-&lt;run&gt;-&lt;key&gt;  (video + thumbnail + script.html)
+        │
+        ▼
+Releases tagged video-*  →  listed &amp; playable right here in the Videos tab</pre>
+            </div>
+          </div>
+          <div class="card">
+            <header class="card-head"><h2>FAQ &amp; troubleshooting</h2></header>
+            <div class="card-body">
+              <dl class="faq">
+                <dt>The render failed — where are the logs?</dt>
+                <dd>
+                  The progress card links to the exact Actions run. Open it, click the <code>render</code> job, and
+                  expand the failed step (usually <code>Render with HeyGen cloud</code> or
+                  <code>Render locally in the runner</code>).
+                </dd>
+                <dt>No HeyGen API key — can I still render?</dt>
+                <dd>Yes. Leave engine on <em>auto</em> or pick <em>Actions runner</em>; the open-source CLI renders in the workflow at no HeyGen cost.</dd>
+                <dt>Preview is blank or the player errors</dt>
+                <dd>Previews use the <code>@hyperframes/player</code> web component from a CDN and need network access to it. Rendering is unaffected — the Actions render loads the same scripts server-side.</dd>
+                <dt>Where does my composition go?</dt>
+                <dd>It is stored as a <em>dangling git blob</em> (not attached to any branch or commit history) and referenced by the workflow run. Nothing is pushed to <code>main</code>.</dd>
+                <dt>Run status shows “can’t read runs”</dt>
+                <dd>Your token lacks <strong>Actions: Read</strong>. Renders still work — use the Actions tab link to watch progress.</dd>
+                <dt>403 rate limit?</dt>
+                <dd>Unauthenticated GitHub API calls are limited to 60/hour. Adding a token raises it to 5,000/hour.</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>
+        Built with <a href="https://developers.heygen.com/hyperframes" target="_blank" rel="noopener">HeyGen
+        HyperFrames</a> + <a href="https://actions.github.io" target="_blank" rel="noopener">GitHub Actions</a>
+      </span>
+      <span id="foot-repo" class="dim"></span>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
