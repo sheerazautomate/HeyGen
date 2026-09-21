@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 
 MAX_HTML_BYTES = 4 * 1024 * 1024  # 4 MB is plenty for an HTML composition
@@ -98,6 +99,79 @@ def preflight_browser(engine: str) -> None:
         tail = [line for line in combined.strip().splitlines() if line.strip()][-6:]
         print("⚠️ browser ensure failed:\n" + "\n".join(tail), flush=True)
     print("⚠️ Continuing without a pre-fetched browser — the render step will retry.", flush=True)
+
+
+def debug_rehearsal(engine: str, fmt: str, fps: int, quality: str, resolution: str, variables: str) -> None:
+    """Run the render step's exact command, capture everything, push to a branch.
+
+    Enabled with settings {"debug": "true"}. GitHub's log-storage hosts are not
+    reachable from some sandboxes, so the combined output (plus doctor output
+    and tool versions) is committed to the `render-debug` branch where it can
+    be read through the regular contents API. Non-fatal throughout.
+    """
+    ws = os.environ.get("GITHUB_WORKSPACE", ".")
+    out_path = os.path.join(ws, "out", f"video.{fmt}")
+    cmd = ["npx", "-y", "hyperframes", "render", "build/project", "--output", out_path,
+           "--fps", str(fps), "--quality", quality, "--format", fmt]
+    if resolution == "4k":
+        cmd += ["--resolution", "4k"]
+    if variables:
+        cmd += ["--variables", variables]
+
+    def run(label, command, timeout=120):
+        try:
+            proc = subprocess.run(command, cwd=ws, timeout=timeout, capture_output=True, text=True)
+            return f"$ {label}\nexit={proc.returncode}\n{proc.stdout}\n{proc.stderr}".strip()
+        except subprocess.TimeoutExpired as exc:
+            return f"$ {label}\nTIMEOUT after {timeout}s\n{(exc.stdout or b'').decode(errors='replace')[-3000:]}"
+        except Exception as exc:  # noqa: BLE001
+            return f"$ {label}\nERROR: {exc}"
+
+    sections = [f"# render-debug for run {os.environ.get('GITHUB_RUN_ID', '?')} ({time.strftime('%Y-%m-%d %H:%M:%SZ', time.gmtime())})"]
+    sections.append(run("node --version && npm --version", ["bash", "-lc", "node --version && npm --version"]))
+    sections.append(run("npx -y hyperframes --version", ["npx", "-y", "hyperframes", "--version"], timeout=180))
+    sections.append(run("npx -y hyperframes doctor", ["npx", "-y", "hyperframes", "doctor"], timeout=240))
+    sections.append(run("npx -y hyperframes browser path", ["npx", "-y", "hyperframes", "browser", "path"], timeout=120))
+    sections.append(run("ffmpeg/ffprobe", ["bash", "-lc", "which ffmpeg ffprobe; ffmpeg -version 2>&1 | head -2; ffprobe -version 2>&1 | head -1"]))
+    sections.append(run("chrome candidates", ["bash", "-lc", "for b in google-chrome google-chrome-stable chromium chromium-browser chrome-headless-shell; do printf '%s: ' $b; command -v $b || echo missing; done; ls -la $HOME/.cache/puppeteer 2>/dev/null || true; ls -la $HOME/.cache/hyperframes 2>/dev/null || true"]))
+    sections.append(run("RENDER (exact command)", cmd, timeout=1500))
+
+    report = "\n\n---\n\n".join(sections)[-180000:]
+    tmp = f"render-debug-{os.environ.get('GITHUB_RUN_ID', 'x')}.txt"
+    os.makedirs("debug", exist_ok=True)
+    with open(os.path.join("debug", tmp), "w", encoding="utf-8") as fh:
+        fh.write(report)
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not token or not repo:
+        print("⚠️ debug: no GITHUB_TOKEN — report kept in debug/ only.", flush=True)
+        return
+    env = dict(os.environ, GIT_AUTHOR_NAME="render-debug-bot", GIT_AUTHOR_EMAIL="debug@arena.ai",
+               GIT_COMMITTER_NAME="render-debug-bot", GIT_COMMITTER_EMAIL="debug@arena.ai")
+    url = f"https://x-access-token:{token}@github.com/{repo}.git"
+
+    def sh(command, timeout=120):
+        try:
+            return subprocess.run(command, cwd=ws, env=env, capture_output=True, text=True, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001
+            class R:
+                returncode = -1
+                stderr = str(exc)
+            return R()
+
+    fetch = sh(["git", "fetch", url, "render-debug", "--depth", "1"])
+    if fetch.returncode == 0:
+        sh(["git", "checkout", "-B", "render-debug", "FETCH_HEAD"])
+    else:
+        sh(["git", "checkout", "-B", "render-debug"])
+    sh(["git", "add", "-A", "debug"])
+    sh(["git", "commit", "-m", f"render debug log {tmp}"])
+    push = sh(["git", "push", url, "render-debug"])
+    if push.returncode != 0:
+        print(f"⚠️ debug push failed: {(push.stderr or '')[-400:]}", flush=True)
+        return
+    print("🧪 Debug report pushed to the render-debug branch: debug/" + tmp, flush=True)
 
 
 def main() -> int:
@@ -221,6 +295,13 @@ def main() -> int:
     # Download the local-render browser now (with retry) so the render step
     # never dies on an inline download failure. No-op for the cloud engine.
     preflight_browser(engine)
+
+    # Optional render rehearsal: runs the render step's exact command, captures
+    # everything (doctor, versions, chrome candidates, full stderr) and pushes
+    # it to the `render-debug` branch. Enable with settings {"debug":"true"}.
+    debug = str(settings.get("debug", "")).lower() in {"1", "true", "yes", "on"} or os.environ.get("HF_RENDER_DEBUG") == "1"
+    if debug:
+        debug_rehearsal(engine, fmt, fps, quality, resolution, variables)
 
     emit(props, {
         "title": title,
