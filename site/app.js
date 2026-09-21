@@ -25,8 +25,12 @@ let timer,
   galleryBusy = false;
 const seenReleases = new Set();
 
+function safeEl(id) {
+  return document.getElementById(id) || document.querySelector(id);
+}
 function message(id, text = "", error = false) {
   const el = $(id);
+  if (!el) return;
   el.textContent = text;
   el.classList.toggle("error", error);
   el.hidden = !text;
@@ -50,6 +54,7 @@ function saveRecent(number) {
 }
 function drawRecent() {
   const list = $("#recent-requests");
+  if (!list) return;
   list.replaceChildren();
   for (const number of recent()) {
     const li = document.createElement("li");
@@ -58,7 +63,8 @@ function drawRecent() {
     button.className = "text-button";
     button.textContent = `Pro Request #${number} →`;
     button.addEventListener("click", () => {
-      $("#request-link").value = String(number);
+      const input = $("#request-link");
+      if (input) input.value = String(number);
       startTracking();
     });
     li.append(button);
@@ -96,46 +102,62 @@ function friendlyError(error) {
     : error.message;
 }
 function invalidateHandoff() {
-  $("#handoff").hidden = true;
-  $("#request-packet").value = "";
-  $("#copy-message").textContent = "";
-  const hasVars = Object.keys(currentVariables).length > 0;
-  $("#prepare").disabled =
-    !metadata ||
-    !$("#title").value.trim() ||
-    !$("#consent").checked ||
-    !policy.enabled;
-
-  // Update pro summary if visible
-  if (!$("#handoff").hidden) updateProSummary();
+  const handoff = $("#handoff");
+  const packet = $("#request-packet");
+  const copyMsg = $("#copy-message");
+  const prepare = $("#prepare");
+  const titleEl = $("#title");
+  const consent = $("#consent");
+  if (handoff) handoff.hidden = true;
+  if (packet) packet.value = "";
+  if (copyMsg) copyMsg.textContent = "";
+  if (prepare) {
+    prepare.disabled =
+      !metadata ||
+      !titleEl?.value?.trim() ||
+      !consent?.checked ||
+      !policy.enabled;
+  }
 }
 function clearFile() {
   html = "";
   metadata = null;
   currentVariables = {};
-  $("#file").value = "";
-  $("#dropzone").hidden = false;
-  $("#file-summary").hidden = true;
-  $("#preview-wrap").hidden = true;
-  $("#variables-card").hidden = true;
-  $("#variables-list").replaceChildren();
-  $("#dimensions").textContent = "Matched to your script • up to 4K";
-  $("#duration-display").textContent = `${policy.max_duration_seconds / 60} minutes`;
+  const fileInput = $("#file");
+  const dropzone = $("#dropzone");
+  const fileSummary = $("#file-summary");
+  const previewWrap = $("#preview-wrap");
+  const varsCard = $("#variables-card");
+  const varsList = $("#variables-list");
+  const dimensions = $("#dimensions");
+  const durationDisplay = $("#duration-display");
+  if (fileInput) fileInput.value = "";
+  if (dropzone) dropzone.hidden = false;
+  if (fileSummary) fileSummary.hidden = true;
+  if (previewWrap) previewWrap.hidden = true;
+  if (varsCard) varsCard.hidden = true;
+  if (varsList) varsList.replaceChildren();
+  if (dimensions) dimensions.textContent = "Matched to your script • up to 4K";
+  if (durationDisplay) durationDisplay.textContent = `${policy.max_duration_seconds / 60} minutes`;
   invalidateHandoff();
   const iframe = $("#preview-frame");
-  if (iframe) iframe.srcdoc = "";
+  if (iframe) {
+    try { iframe.srcdoc = ""; } catch {}
+  }
 }
 function renderVariablesEditor(varsSchema) {
   const container = $("#variables-list");
+  const card = $("#variables-card");
+  if (!container || !card) return;
   container.replaceChildren();
   currentVariables = {};
 
   if (!varsSchema || !varsSchema.length) {
-    $("#variables-card").hidden = true;
+    card.hidden = true;
     return;
   }
 
-  $("#variables-card").hidden = false;
+  card.hidden = false;
   for (const v of varsSchema) {
     if (!v.id) continue;
     const row = document.createElement("div");
@@ -148,13 +170,12 @@ function renderVariablesEditor(varsSchema) {
     input.placeholder = v.default || "";
     input.value = v.default || "";
     input.dataset.varId = v.id;
-    // Set initial
     currentVariables[v.id] = v.default || "";
 
     input.addEventListener("input", () => {
       currentVariables[v.id] = input.value;
       invalidateHandoff();
-      updatePreviewWithVars();
+      try { updatePreviewWithVars(); } catch {}
     });
 
     const hint = document.createElement("small");
@@ -169,7 +190,6 @@ function updatePreviewWithVars() {
   const iframe = $("#preview-frame");
   if (!iframe || !html) return;
   try {
-    // Inject variables into preview via script override
     let previewHtml = html;
     if (Object.keys(currentVariables).length > 0) {
       const varsJson = JSON.stringify(currentVariables);
@@ -193,29 +213,37 @@ function setFile(text, name) {
     metadata = parsed;
     const sizeMB = (parsed.bytes / (1024 * 1024)).toFixed(2);
     const sizeLabel = parsed.bytes > 1024 * 1024 ? `${sizeMB} MB` : `${(parsed.bytes / 1024).toFixed(1)} KB`;
-    $("#file-name").textContent = name;
-    $("#file-detail").textContent =
+    const fileName = $("#file-name");
+    const fileDetail = $("#file-detail");
+    const dimensions = $("#dimensions");
+    const durationDisplay = $("#duration-display");
+    const dropzone = $("#dropzone");
+    const fileSummary = $("#file-summary");
+    const previewWrap = $("#preview-wrap");
+    const previewFrame = $("#preview-frame");
+    const titleEl = $("#title");
+    if (fileName) fileName.textContent = name;
+    if (fileDetail) fileDetail.textContent =
       `${sizeLabel} · ${parsed.width} × ${parsed.height} · ${parsed.duration}s · ${parsed.variables?.length || 0} vars`;
-    $("#dimensions").textContent = `${parsed.width} × ${parsed.height} • ${Math.round((parsed.width * parsed.height)/1000000*10)/10}MP`;
-    $("#duration-display").textContent = `${parsed.duration}s / max ${policy.max_duration_seconds}s`;
-    $("#dropzone").hidden = true;
-    $("#file-summary").hidden = false;
+    if (dimensions) dimensions.textContent = `${parsed.width} × ${parsed.height} • ${Math.round((parsed.width * parsed.height)/1000000*10)/10}MP`;
+    if (durationDisplay) durationDisplay.textContent = `${parsed.duration}s / max ${policy.max_duration_seconds}s`;
+    if (dropzone) dropzone.hidden = true;
+    if (fileSummary) fileSummary.hidden = false;
 
-    // Preview
-    $("#preview-wrap").hidden = false;
-    $("#preview-frame").srcdoc = text;
+    if (previewWrap) previewWrap.hidden = false;
+    if (previewFrame) {
+      try { previewFrame.srcdoc = text; } catch {}
+    }
 
-    // Variables
     if (parsed.variables && parsed.variables.length) {
       renderVariablesEditor(parsed.variables);
     } else {
-      // Try extract via regex fallback
       const vars = extractVariables(text);
       if (vars.length) renderVariablesEditor(vars);
     }
 
-    if (!$("#title").value.trim())
-      $("#title").value = name.replace(/\.html?$/i, "").slice(0, 100);
+    if (titleEl && !titleEl.value.trim())
+      titleEl.value = name.replace(/\.html?$/i, "").slice(0, 100);
     message("#file-message");
     invalidateHandoff();
   } catch (error) {
@@ -250,16 +278,15 @@ async function readFile(file) {
 function updateProSummary() {
   const el = $("#pro-summary");
   if (!el) return;
-  const fps = $("#fps").value;
-  const quality = $("#quality").value;
-  const format = $("#format").value;
+  const fps = $("#fps")?.value || "30";
+  const quality = $("#quality")?.value || "standard";
+  const format = $("#format")?.value || "mp4";
   const varsCount = Object.keys(currentVariables).length;
-  el.innerHTML = `<strong>Pro settings:</strong> ${quality} quality • ${fps}fps • ${format.toUpperCase()} • ${varsCount} variable overrides • ${metadata?.width || 0}x${metadata?.height || 0} • private`;
+  el.textContent = `Pro settings: ${quality} quality • ${fps}fps • ${format.toUpperCase()} • ${varsCount} variable overrides • ${metadata?.width || 0}x${metadata?.height || 0} • private`;
 }
 
 function videoCard(release) {
   const assets = release.assets || [];
-  // Prefer mp4, but accept webm/mov as well
   let video = assets.find(
     (a) =>
       /^video\.mp4$/.test(a.name) &&
@@ -309,7 +336,6 @@ function videoCard(release) {
   details.rel = "noopener noreferrer";
   actions.append(download, details);
 
-  // Show other formats if available
   const otherFormats = assets.filter(a => /^video\.(webm|mov|mp4)$/.test(a.name) && a.name !== video.name && trustedAssetURL(a.browser_download_url, repo));
   if (otherFormats.length) {
     const otherDiv = document.createElement("div");
@@ -327,14 +353,19 @@ function videoCard(release) {
 async function loadGallery(reset = false) {
   if (galleryBusy) return;
   galleryBusy = true;
-  $("#refresh-gallery").disabled = true;
-  $("#more-videos").disabled = true;
+  const refreshBtn = $("#refresh-gallery");
+  const moreBtn = $("#more-videos");
+  const gallery = $("#gallery");
+  const empty = $("#gallery-empty");
+  const count = $("#video-count");
+  if (refreshBtn) refreshBtn.disabled = true;
+  if (moreBtn) moreBtn.disabled = true;
   if (reset) {
     galleryPage = 0;
     seenReleases.clear();
-    $("#gallery").replaceChildren();
+    if (gallery) gallery.replaceChildren();
   }
-  $("#gallery-empty").hidden = true;
+  if (empty) empty.hidden = true;
   message("#gallery-message", "Fetching private releases… (requires GitHub auth for private repo)");
   try {
     const releases = await api(`/releases?per_page=30&page=${galleryPage + 1}`);
@@ -347,16 +378,16 @@ async function loadGallery(reset = false) {
       )
         continue;
       const card = videoCard(release);
-      if (card) {
-        $("#gallery").append(card);
+      if (card && gallery) {
+        gallery.append(card);
         seenReleases.add(release.id);
       }
     }
-    $("#video-count").textContent = seenReleases.size
+    if (count) count.textContent = seenReleases.size
       ? `(${seenReleases.size} loaded)`
       : "";
-    $("#more-videos").hidden = releases.length < 30;
-    $("#gallery-empty").hidden =
+    if (moreBtn) moreBtn.hidden = releases.length < 30;
+    if (empty) empty.hidden =
       seenReleases.size > 0 || releases.length === 30;
     message(
       "#gallery-message",
@@ -368,8 +399,8 @@ async function loadGallery(reset = false) {
     message("#gallery-message", friendlyError(error) + " For private repo, ensure you're logged into GitHub and have access. Or use Track page.", true);
   } finally {
     galleryBusy = false;
-    $("#refresh-gallery").disabled = false;
-    $("#more-videos").disabled = false;
+    if (refreshBtn) refreshBtn.disabled = false;
+    if (moreBtn) moreBtn.disabled = false;
   }
 }
 
@@ -395,12 +426,15 @@ function paintStatus(state) {
     failed: "Needs attention",
     waiting: "Waiting for review",
   };
-  $("#tracking-status").textContent = labels[state.status];
-  $("#tracking-detail").textContent = state.message;
+  const statusEl = $("#tracking-status");
+  const detailEl = $("#tracking-detail");
+  if (statusEl) statusEl.textContent = labels[state.status] || state.status;
+  if (detailEl) detailEl.textContent = state.message;
   const index = ["queued", "creating", "ready"].indexOf(state.status);
-  ["queued", "creating", "ready"].forEach((s, i) =>
-    $(`#progress-${s}`).classList.toggle("done", index >= i),
-  );
+  ["queued", "creating", "ready"].forEach((s, i) => {
+    const el = $(`#progress-${s}`);
+    if (el) el.classList.toggle("done", index >= i);
+  });
 }
 async function refreshTracking(epoch) {
   const number = trackingNumber;
@@ -416,10 +450,13 @@ async function refreshTracking(epoch) {
       throw new Error(
         "That issue is not a video request. Please use the link from the video submission form.",
       );
-    $("#tracking-result").hidden = false;
-    $("#tracking-title").textContent =
+    const result = $("#tracking-result");
+    const titleEl = $("#tracking-title");
+    const issueLink = $("#tracking-issue");
+    if (result) result.hidden = false;
+    if (titleEl) titleEl.textContent =
       issue.title.replace(/^\[Video\]\s*/, "") || `Pro Request #${number}`;
-    $("#tracking-issue").href = `${repoURL}/issues/${number}`;
+    if (issueLink) issueLink.href = `${repoURL}/issues/${number}`;
     saveRecent(number);
     const comments = await statusComments(number);
     if (epoch !== trackEpoch) return;
@@ -444,7 +481,8 @@ async function refreshTracking(epoch) {
         throw new Error(
           "The video file is not available. Please check the private release or ask the owner.",
         );
-      $("#tracking-video").replaceChildren(card);
+      const videoWrap = $("#tracking-video");
+      if (videoWrap) videoWrap.replaceChildren(card);
       return;
     }
     if (
@@ -467,34 +505,45 @@ async function refreshTracking(epoch) {
         true,
       );
   } finally {
-    if (epoch === trackEpoch) $("#track-request").disabled = false;
+    const trackBtn = $("#track-request");
+    if (epoch === trackEpoch && trackBtn) trackBtn.disabled = false;
   }
 }
 function startTracking() {
   clearTimeout(timer);
   ++trackEpoch;
-  $("#tracking-result").hidden = true;
-  $("#tracking-video").replaceChildren();
+  const result = $("#tracking-result");
+  const videoWrap = $("#tracking-video");
+  if (result) result.hidden = true;
+  if (videoWrap) videoWrap.replaceChildren();
   try {
-    trackingNumber = parseIssueInput($("#request-link").value, repo);
+    const input = $("#request-link");
+    trackingNumber = parseIssueInput(input?.value || "", repo);
     pollStarted = Date.now();
-    $("#track-request").disabled = true;
+    const trackBtn = $("#track-request");
+    if (trackBtn) trackBtn.disabled = true;
     message("#track-message", "Looking up your pro request…");
     history.replaceState(null, "", `#track/${trackingNumber}`);
     refreshTracking(trackEpoch);
   } catch (error) {
-    $("#track-request").disabled = false;
+    const trackBtn = $("#track-request");
+    if (trackBtn) trackBtn.disabled = false;
     message("#track-message", error.message, true);
   }
 }
 function navigate() {
-  const [target, number] = location.hash.slice(1).split("/");
+  const hash = location.hash.slice(1).split("/");
+  const target = hash[0];
+  const number = hash[1];
   view = ["create", "gallery", "track"].includes(target) ? target : "create";
   clearTimeout(timer);
   ++trackEpoch;
-  $("#track-request").disabled = false;
-  for (const el of document.querySelectorAll(".view"))
-    el.hidden = el.id !== `view-${view}`;
+  const trackBtn = $("#track-request");
+  if (trackBtn) trackBtn.disabled = false;
+  for (const el of document.querySelectorAll(".view")) {
+    if (el.id === `view-${view}`) el.hidden = false;
+    else el.hidden = true;
+  }
   for (const el of document.querySelectorAll("nav a")) {
     const active = el.dataset.view === view;
     el.classList.toggle("active", active);
@@ -505,118 +554,172 @@ function navigate() {
   if (view === "track") {
     drawRecent();
     if (/^[1-9]\d{0,8}$/.test(number || "")) {
-      $("#request-link").value = number;
+      const input = $("#request-link");
+      if (input) input.value = number;
       startTracking();
     }
   }
 }
-$("#repository-link").href = repoURL;
-$("#pilot-info").href = repoURL;
-$("#pilot-info").target = "_blank";
-$("#pilot-info").rel = "noopener noreferrer";
-$("#file-limit").textContent =
-  `HyperFrames HTML · up to ${policy.max_html_bytes / 1024 / 1024} MB · up to ${policy.max_duration_seconds / 60} minutes · 4K ready`;
-$("#quota-note").textContent = policy.private_mode
-  ? `Private • Unlimited (1000/day soft) • 4K • 60fps • High • Network enabled • ${policy.allow_external_assets ? "External assets OK" : ""}`
-  : `Free pilot · ${policy.per_user_daily} requests per person / day · ${policy.global_daily} total / day`;
 
-$("#dropzone").addEventListener("click", () => $("#file").click());
-$("#file").addEventListener("change", (event) =>
-  readFile(event.target.files[0]),
-);
-for (const type of ["dragover", "dragleave", "drop"])
-  $("#dropzone").addEventListener(type, (event) => {
-    event.preventDefault();
-    $("#dropzone").classList.toggle("dragging", type === "dragover");
-    if (type === "drop") readFile(event.dataTransfer.files[0]);
-  });
-window.addEventListener("dragover", (event) => event.preventDefault());
-window.addEventListener("drop", (event) => event.preventDefault());
-$("#remove-file").addEventListener("click", () => {
-  ++fileEpoch;
-  clearFile();
-  message("#file-message");
-});
-$("#title").addEventListener("input", invalidateHandoff);
-$("#consent").addEventListener("change", invalidateHandoff);
-$("#quality").addEventListener("change", invalidateHandoff);
-$("#fps").addEventListener("change", invalidateHandoff);
-$("#format").addEventListener("change", invalidateHandoff);
-$("#resolution").addEventListener("change", invalidateHandoff);
-
-$("#load-example").addEventListener("click", async () => {
-  const epoch = ++fileEpoch;
-  $("#load-example").disabled = true;
+function init() {
   try {
-    const response = await fetch("examples/product-launch.html");
-    if (!response.ok)
-      throw new Error("The example could not be loaded. Please try again.");
-    const text = await response.text();
-    if (epoch === fileEpoch) {
-      $("#title").value = "My product launch - pro";
-      setFile(text, "product-launch.html");
+    const repoLink = $("#repository-link");
+    const pilotInfo = $("#pilot-info");
+    const fileLimit = $("#file-limit");
+    const quotaNote = $("#quota-note");
+    if (repoLink) repoLink.href = repoURL;
+    if (pilotInfo) {
+      pilotInfo.href = repoURL;
+      pilotInfo.target = "_blank";
+      pilotInfo.rel = "noopener noreferrer";
     }
-  } catch (error) {
-    message("#file-message", error.message, true);
-  } finally {
-    $("#load-example").disabled = false;
-  }
-});
-$("#prepare").addEventListener("click", () => {
-  if (!metadata || !$("#consent").checked || !policy.enabled) return;
-  try {
-    const options = {
-      fps: $("#fps").value,
-      quality: $("#quality").value,
-      format: $("#format").value,
-      resolution: $("#resolution").value,
-      variables: currentVariables,
-    };
-    const packet = encodePacket(html, $("#title").value, options);
-    $("#request-packet").value = packet;
-    const params = new URLSearchParams({
-      template: "render-video.yml",
-      title: `[Video] ${$("#title").value.trim()}`,
+    if (fileLimit) fileLimit.textContent =
+      `HyperFrames HTML · up to ${policy.max_html_bytes / 1024 / 1024} MB · up to ${policy.max_duration_seconds / 60} minutes · 4K ready`;
+    if (quotaNote) quotaNote.textContent = policy.private_mode
+      ? `Private • Unlimited (1000/day soft) • 4K • 60fps • High • Network enabled • ${policy.allow_external_assets ? "External assets OK" : ""}`
+      : `Free pilot · ${policy.per_user_daily} requests per person / day · ${policy.global_daily} total / day`;
+
+    const dropzone = $("#dropzone");
+    const fileInput = $("#file");
+    if (dropzone && fileInput) {
+      dropzone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", (event) =>
+        readFile(event.target.files[0]),
+      );
+      for (const type of ["dragover", "dragleave", "drop"])
+        dropzone.addEventListener(type, (event) => {
+          event.preventDefault();
+          dropzone.classList.toggle("dragging", type === "dragover");
+          if (type === "drop") readFile(event.dataTransfer.files[0]);
+        });
+    }
+    window.addEventListener("dragover", (event) => event.preventDefault());
+    window.addEventListener("drop", (event) => event.preventDefault());
+    const removeBtn = $("#remove-file");
+    if (removeBtn) removeBtn.addEventListener("click", () => {
+      ++fileEpoch;
+      clearFile();
+      message("#file-message");
     });
-    $("#submit-request").href = `${repoURL}/issues/new?${params}`;
-    $("#handoff").hidden = false;
-    updateProSummary();
-    $("#copy-request").focus();
-  } catch (error) {
-    message("#file-message", error.message, true);
+    const titleEl = $("#title");
+    const consent = $("#consent");
+    const quality = $("#quality");
+    const fps = $("#fps");
+    const format = $("#format");
+    const resolution = $("#resolution");
+    if (titleEl) titleEl.addEventListener("input", invalidateHandoff);
+    if (consent) consent.addEventListener("change", invalidateHandoff);
+    if (quality) quality.addEventListener("change", invalidateHandoff);
+    if (fps) fps.addEventListener("change", invalidateHandoff);
+    if (format) format.addEventListener("change", invalidateHandoff);
+    if (resolution) resolution.addEventListener("change", invalidateHandoff);
+
+    const loadExample = $("#load-example");
+    if (loadExample) loadExample.addEventListener("click", async () => {
+      const epoch = ++fileEpoch;
+      loadExample.disabled = true;
+      try {
+        const response = await fetch("examples/product-launch.html");
+        if (!response.ok)
+          throw new Error("The example could not be loaded. Please try again.");
+        const text = await response.text();
+        if (epoch === fileEpoch) {
+          if (titleEl) titleEl.value = "My product launch - pro";
+          setFile(text, "product-launch.html");
+        }
+      } catch (error) {
+        message("#file-message", error.message, true);
+      } finally {
+        loadExample.disabled = false;
+      }
+    });
+    const prepare = $("#prepare");
+    if (prepare) prepare.addEventListener("click", () => {
+      const consentEl = $("#consent");
+      if (!metadata || !consentEl?.checked || !policy.enabled) return;
+      try {
+        const options = {
+          fps: $("#fps")?.value || "30",
+          quality: $("#quality")?.value || "standard",
+          format: $("#format")?.value || "mp4",
+          resolution: $("#resolution")?.value || "original",
+          variables: currentVariables,
+        };
+        const packet = encodePacket(html, $("#title")?.value || "video", options);
+        const packetEl = $("#request-packet");
+        const submit = $("#submit-request");
+        const handoff = $("#handoff");
+        const copyBtn = $("#copy-request");
+        if (packetEl) packetEl.value = packet;
+        if (submit) {
+          const params = new URLSearchParams({
+            template: "render-video.yml",
+            title: `[Video] ${($("#title")?.value || "video").trim()}`,
+          });
+          submit.href = `${repoURL}/issues/new?${params}`;
+        }
+        if (handoff) handoff.hidden = false;
+        updateProSummary();
+        if (copyBtn) copyBtn.focus();
+      } catch (error) {
+        message("#file-message", error.message, true);
+      }
+    });
+    const copyBtn = $("#copy-request");
+    if (copyBtn) copyBtn.addEventListener("click", async () => {
+      const packetEl = $("#request-packet");
+      const copyMsg = $("#copy-message");
+      const handoff = $("#handoff");
+      try {
+        await navigator.clipboard.writeText(packetEl?.value || "");
+        if (copyMsg) copyMsg.textContent =
+          "Copied pro request! Now open the GitHub form and paste it.";
+      } catch {
+        const details = handoff?.querySelector("details");
+        if (details) details.open = true;
+        if (packetEl) {
+          packetEl.focus();
+          packetEl.select();
+        }
+        if (copyMsg) copyMsg.textContent =
+          "Clipboard blocked. Copy manually using your device's copy command.";
+      }
+    });
+    const refreshGallery = $("#refresh-gallery");
+    const moreVideos = $("#more-videos");
+    const trackRequest = $("#track-request");
+    const requestLink = $("#request-link");
+    const clearHistory = $("#clear-history");
+    if (refreshGallery) refreshGallery.addEventListener("click", () => loadGallery(true));
+    if (moreVideos) moreVideos.addEventListener("click", () => loadGallery());
+    if (trackRequest) trackRequest.addEventListener("click", startTracking);
+    if (requestLink) requestLink.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") startTracking();
+    });
+    if (clearHistory) clearHistory.addEventListener("click", () => {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+      drawRecent();
+    });
+    window.addEventListener("hashchange", navigate);
+    for (const store of ["localStorage", "sessionStorage"]) {
+      try {
+        for (const key of Object.keys(window[store]))
+          if (key === "hfgh_token" || /^hf[.:_-].*(token|pat)/i.test(key))
+            window[store].removeItem(key);
+      } catch {}
+    }
+    navigate();
+  } catch (e) {
+    console.error("Studio init failed", e);
+    const msg = document.getElementById("file-message");
+    if (msg) {
+      msg.textContent = "Studio failed to initialize: " + e.message;
+      msg.hidden = false;
+      msg.classList.add("error");
+    }
   }
-});
-$("#copy-request").addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText($("#request-packet").value);
-    $("#copy-message").textContent =
-      "Copied pro request! Now open the GitHub form and paste it.";
-  } catch {
-    $("#handoff details").open = true;
-    $("#request-packet").focus();
-    $("#request-packet").select();
-    $("#copy-message").textContent =
-      "Clipboard blocked. Copy manually using your device's copy command.";
-  }
-});
-$("#refresh-gallery").addEventListener("click", () => loadGallery(true));
-$("#more-videos").addEventListener("click", () => loadGallery());
-$("#track-request").addEventListener("click", startTracking);
-$("#request-link").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") startTracking();
-});
-$("#clear-history").addEventListener("click", () => {
-  try {
-    localStorage.removeItem(storageKey);
-  } catch {}
-  drawRecent();
-});
-window.addEventListener("hashchange", navigate);
-for (const store of ["localStorage", "sessionStorage"]) {
-  try {
-    for (const key of Object.keys(window[store]))
-      if (key === "hfgh_token" || /^hf[.:_-].*(token|pat)/i.test(key))
-        window[store].removeItem(key);
-  } catch {}
 }
-navigate();
+
+init();
