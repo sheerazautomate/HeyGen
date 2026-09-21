@@ -1,4 +1,4 @@
-name: Test studio and pilot
+name: Test personal pro studio
 
 on:
   pull_request:
@@ -47,6 +47,8 @@ jobs:
         run: |
           mkdir -p build/request
           cp tests/fixtures/smoke.html build/request/index.html
+          echo '{"fps":30,"quality":"standard","format":"mp4","duration":1,"width":1920,"height":1080,"variables":{}}' > build/request/manifest.json
+          echo '{}' > build/request/variables.json
           bash scripts/pilot/run_sandbox.sh
           test -s build/media/video.mp4
           test -s build/media/thumbnail.jpg
