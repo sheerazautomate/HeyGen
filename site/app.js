@@ -546,7 +546,7 @@
     const assets = rel.assets || [];
     const video = assets.find((a) => /^video\.(mp4|webm|mov)$/i.test(a.name)) || assets.find((a) => /\.(mp4|webm|mov)$/i.test(a.name));
     const thumb = assets.find((a) => /^thumbnail\.(jpg|jpeg|png)$/i.test(a.name));
-    const script = assets.find((a) => /^script\.html$/i.test(a.name));
+    const script = assets.find((a) => /^(script|index)\.html$/i.test(a.name)) || assets.find((a) => /text\/html|\.html?$/i.test(a.name));
     const tall = /\b9:16\b/.test(rel.body || "");
     const square = /\b1:1\b/.test(rel.body || "") && !tall;
 
