@@ -1,11 +1,10 @@
-name: Create pilot video
-run-name: "Video request #${{ github.event.issue.number }}"
+name: Create personal pro video
+run-name: "Pro video request #${{ github.event.issue.number }}"
 
 on:
   issues:
     types: [opened]
 
-# No repository_dispatch, issue edits/comments, PR code, or user-supplied refs.
 permissions: {}
 concurrency:
   group: pilot-issue-${{ github.event.issue.number }}
@@ -14,7 +13,7 @@ concurrency:
 jobs:
   admit:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -27,7 +26,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check approval, limits, consent, and composition
+      - name: Check personal access and composition (pro limits)
         id: request
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,14 +37,14 @@ jobs:
         with:
           name: pilot-request
           path: build/request/
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
 
   render:
     needs: admit
     if: needs.admit.outputs.accepted == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -58,11 +57,11 @@ jobs:
           name: pilot-request
           path: build/request
 
-      - name: Build trusted offline renderer (before executing any upload)
+      - name: Build pro renderer with network access (before executing upload)
         run: docker build -t pilot-renderer scripts/pilot
 
-      - name: Render without network, secrets, or repository mounts
-        timeout-minutes: 13
+      - name: Render with full throttle (network, 4 CPUs, 8GB, up to 10 min, 4K/60fps/high)
+        timeout-minutes: 20
         run: bash scripts/pilot/run_sandbox.sh
 
       - name: Always stop the sandbox
@@ -73,10 +72,9 @@ jobs:
         with:
           name: pilot-media
           path: build/media/
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
 
-  # Runs alongside rendering, but never on the renderer's machine.
   creating:
     needs: admit
     if: needs.admit.outputs.accepted == 'true'
@@ -100,7 +98,7 @@ jobs:
     needs: [admit, render, creating]
     if: ${{ !cancelled() && needs.admit.outputs.accepted == 'true' && needs.render.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
       issues: write
@@ -119,7 +117,7 @@ jobs:
           name: pilot-media
           path: build/media
 
-      - name: Publish video and update its request
+      - name: Publish pro video and update its request
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/pilot/publish.py
