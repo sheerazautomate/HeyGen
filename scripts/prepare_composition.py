@@ -16,6 +16,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -79,6 +80,7 @@ def preflight_browser(engine: str) -> None:
     """
     if engine == "heygen-cloud":
         return
+    ensure_ffmpeg()
     for attempt, flags in enumerate(([], ["--force"]), start=1):
         label = f"hyperframes browser ensure {' '.join(flags)}".strip()
         print(f"🌐 Prefetching render browser (attempt {attempt}/2: {label})…", flush=True)
@@ -99,6 +101,37 @@ def preflight_browser(engine: str) -> None:
         tail = [line for line in combined.strip().splitlines() if line.strip()][-6:]
         print("⚠️ browser ensure failed:\n" + "\n".join(tail), flush=True)
     print("⚠️ Continuing without a pre-fetched browser — the render step will retry.", flush=True)
+
+
+def ensure_ffmpeg() -> None:
+    """Install FFmpeg/FFprobe when missing.
+
+    GitHub's ubuntu-latest runner images no longer ship ffmpeg, and
+    `hyperframes render` exits immediately when it cannot find an encoder.
+    Runners have passwordless sudo and open apt access, so install it here
+    (before the render step). Non-fatal if installation fails.
+    """
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        print("✅ FFmpeg already present.", flush=True)
+        return
+    print("📦 Installing FFmpeg (apt-get)…", flush=True)
+    try:
+        subprocess.run(["sudo", "apt-get", "update", "-qq"], timeout=300, capture_output=True)
+        proc = subprocess.run(
+            ["sudo", "apt-get", "install", "-y", "-qq", "ffmpeg"],
+            timeout=600,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️ FFmpeg install error: {exc}", flush=True)
+        return
+    if proc.returncode == 0 and shutil.which("ffmpeg"):
+        version = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout.splitlines()[0]
+        print(f"✅ FFmpeg installed: {version}", flush=True)
+    else:
+        tail = (proc.stderr or "").strip().splitlines()[-5:]
+        print("⚠️ FFmpeg install failed:\n" + "\n".join(tail), flush=True)
 
 
 def debug_rehearsal(engine: str, fmt: str, fps: int, quality: str, resolution: str, variables: str) -> None:
