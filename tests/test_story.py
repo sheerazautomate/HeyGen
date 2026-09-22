@@ -414,6 +414,10 @@ class IssueFormTest(unittest.TestCase):
         self.assertEqual(merged["tone"], "corporate")
         self.assertEqual(merged["fps"], 60)  # untouched
 
+    def test_safe_no_music_label_maps_to_internal_none(self):
+        form = commands.parse_issue_form(FORM_BODY.replace("### Music\n\nlofi", "### Music\n\nno music"))
+        self.assertEqual(form["music_mood"], "none")
+
 
 class PacketTest(unittest.TestCase):
     def test_roundtrip(self):

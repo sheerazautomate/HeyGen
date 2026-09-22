@@ -673,6 +673,7 @@ function init() {
       "1:1": "1:1 (1080×1080)",
     };
     const STORY_FORMAT_LABELS = { mp4: "mp4", webm: "webm (alpha)", mov: "mov (ProRes)" };
+    const STORY_MUSIC_LABELS = { none: "no music" };
     const stOpen = $("#st-open");
     if (stOpen) {
       const updateStoryLink = () => {
@@ -697,7 +698,7 @@ function init() {
           pace: $("#st-pace")?.value || "balanced",
           length: $("#st-length")?.value || "30",
           aspect: STORY_ASPECT_LABELS[$("#st-aspect")?.value || "16:9"],
-          music_mood: $("#st-mood")?.value || "upbeat",
+          music_mood: STORY_MUSIC_LABELS[$("#st-mood")?.value || "upbeat"] || $("#st-mood")?.value || "upbeat",
           quality: $("#st-quality")?.value || "standard",
           fps: $("#st-fps")?.value || "30",
           video_format: STORY_FORMAT_LABELS[$("#st-format")?.value || "mp4"],

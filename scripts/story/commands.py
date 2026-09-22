@@ -146,7 +146,7 @@ FIELD_MARKS = {
     "pace": re.compile(r"###\s*Pace\s*\n+\s*(\w+)", re.IGNORECASE),
     "length": re.compile(r"###\s*Length \(seconds\)\s*\n+\s*([\d.]+)", re.IGNORECASE),
     "aspect": re.compile(r"###\s*Aspect\s*\n+\s*([\d]+:[\d]+)", re.IGNORECASE),
-    "music_mood": re.compile(r"###\s*Music\s*\n+\s*(\w+)", re.IGNORECASE),
+    "music_mood": re.compile(r"###\s*Music\s*\n+\s*([^\n]+)", re.IGNORECASE),
     "music_url": re.compile(r"###\s*Custom music URL[^\n]*\n+\s*(https?://\S+)", re.IGNORECASE),
     "quality": re.compile(r"###\s*Quality\s*\n+\s*(\w+)", re.IGNORECASE),
     "fps": re.compile(r"###\s*FPS\s*\n+\s*(\d+)", re.IGNORECASE),
@@ -178,7 +178,13 @@ def parse_issue_form(body):
     out["tone"] = out.get("tone") if out.get("tone") in TONES else "cinematic"
     out["pace"] = out.get("pace") if out.get("pace") in PACES else "balanced"
     out["aspect"] = out.get("aspect") if out.get("aspect") in ASPECTS else "16:9"
-    out["music_mood"] = out.get("music_mood") if out.get("music_mood") in MOODS else "upbeat"
+    music_mood = (out.get("music_mood") or "").strip().lower()
+    # GitHub reserves the exact option "none" in issue-form dropdowns, so the
+    # public form uses "no music" while the story pipeline keeps its canonical
+    # internal value.
+    if music_mood == "no music":
+        music_mood = "none"
+    out["music_mood"] = music_mood if music_mood in MOODS else "upbeat"
     out["quality"] = out.get("quality") if out.get("quality") in QUALITIES else "standard"
     out["format"] = out.get("format") if out.get("format") in FORMATS else "mp4"
     if not out.get("repo_url"):
