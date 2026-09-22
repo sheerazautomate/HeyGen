@@ -70,3 +70,54 @@ jobs:
   publish:
     needs: [render, creating]
     if: ${{ !cancelled() && needs.render.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: render-media
+          path: build/media
+
+      - name: Publish pro video and update its request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/pilot/publish.py
+
+  failure:
+    needs: [render, creating, publish]
+    if: ${{ always() && needs.publish.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - name: Resolve tracking comment
+        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json'))['comment'])")" >> "$GITHUB_ENV"
+
+      - name: Mark request as failed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_STATUS: failed
+        run: python3 scripts/pilot/status.py
