@@ -420,7 +420,7 @@ def _extract_packet(text):
     if not text:
         return None
     import re as _re
-    m = _re.search(r"ST1\.[A-Za-z0-9_-]+", text)
+    m = _re.search(r"ST1\.[A-Za-z0-9_=-]+", text)
     return m.group(0) if m else None
 
 

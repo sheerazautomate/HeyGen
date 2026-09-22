@@ -119,6 +119,13 @@ class SchemaTest(unittest.TestCase):
         script = make_script()
         self.assertIn(len(script["scenes"][1]["slots"]["features"]), (2, 3, 4, 5, 6))
 
+    def test_stats_keep_value_label(self):
+        script = make_script()
+        stats = next(s for s in script["scenes"] if s["template"] == "stats")
+        self.assertGreaterEqual(len(stats["slots"]["stats"]), 2)
+        self.assertIn("value", stats["slots"]["stats"][0])
+        self.assertEqual(stats["slots"]["stats"][0]["value"], "1.2k")
+
     def test_custom_html_is_sanitized(self):
         raw = make_script()
         raw["scenes"].insert(1, {"id": "sx", "template": "custom", "duration_s": 4, "slots": {

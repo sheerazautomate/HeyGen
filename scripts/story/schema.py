@@ -209,9 +209,25 @@ def normalize_slots(template, slots, warnings, sid):
         elif kind == "pairs":
             out[name] = _norm_pairs(raw, cap, PAIR_TITLE_MAX, PAIR_DESC_MAX, warnings, label)
         elif kind == "stats":
-            out[name] = _norm_pairs(raw, cap, STAT_VALUE_MAX, STAT_LABEL_MAX, warnings, label)
-            for st in out[name]:
-                st["value"], st["label"] = st.pop("title"), st.pop("desc")
+            items = []
+            if isinstance(raw, list):
+                for it in raw[:cap]:
+                    if not isinstance(it, dict):
+                        continue
+                    if "value" in it or "label" in it:
+                        val = clamp_text(it.get("value"), STAT_VALUE_MAX, warnings, label)
+                        lab = clamp_text(it.get("label"), STAT_LABEL_MAX, warnings, label)
+                    else:
+                        val = clamp_text(it.get("title"), STAT_VALUE_MAX, warnings, label)
+                        lab = clamp_text(it.get("desc"), STAT_LABEL_MAX, warnings, label)
+                    if val:
+                        items.append({"value": val, "label": lab})
+            if required and len(items) < 2:
+                items = (items + [
+                    {"value": "1", "label": "open source"},
+                    {"value": "100%", "label": "yours to fork"},
+                ])[:4]
+            out[name] = items
         elif kind == "steps":
             out[name] = _norm_pairs(raw, cap, 34, 90, warnings, label)
         elif kind == "code":
