@@ -9,7 +9,9 @@
     "test": "python3 -m unittest discover -s tests -p 'test_*.py' && node --test tests/core.test.mjs",
     "test:browser": "playwright test",
     "render:local": "python3 scripts/personal_render.py",
-    "render:local:high": "python3 scripts/personal_render.py examples/product-launch.html --quality high --fps 60 --format mp4"
+    "render:local:high": "python3 scripts/personal_render.py examples/product-launch.html --quality high --fps 60 --format mp4",
+    "story": "python3 scripts/story/story.py",
+    "render:story": "python3 scripts/personal_render.py --story"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2"

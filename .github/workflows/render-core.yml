@@ -1,0 +1,123 @@
+name: Render core (shared)
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        required: true
+        type: string
+        description: Name of the uploaded artifact containing build/request/ (index.html, manifest.json, ...)
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - name: Build pro renderer with network access (before executing upload)
+        run: docker build -t pilot-renderer scripts/pilot
+
+      - name: Render with full throttle (network, 4 CPUs, 8GB, up to 10 min, 4K/60fps/high)
+        timeout-minutes: 20
+        run: bash scripts/pilot/run_sandbox.sh
+
+      - name: Always stop the sandbox
+        if: always()
+        run: docker rm -f pilot-sandbox >/dev/null 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-media
+          path: build/media/
+          retention-days: 7
+          if-no-files-found: error
+
+  creating:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - name: Resolve tracking comment
+        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json'))['comment'])")" >> "$GITHUB_ENV"
+
+      - name: Mark request as rendering
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_STATUS: creating
+        run: python3 scripts/pilot/status.py
+
+  publish:
+    needs: [render, creating]
+    if: ${{ !cancelled() && needs.render.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: render-media
+          path: build/media
+
+      - name: Publish pro video and update its request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/pilot/publish.py
+
+  failure:
+    needs: [render, creating, publish]
+    if: ${{ always() && needs.publish.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build/request
+
+      - name: Resolve tracking comment
+        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json'))['comment'])")" >> "$GITHUB_ENV"
+
+      - name: Mark request as failed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_STATUS: failed
+        run: python3 scripts/pilot/status.py

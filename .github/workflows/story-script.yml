@@ -1,0 +1,97 @@
+name: Story script (repo link → storyboard)
+run-name: "Story for #${{ github.event.issue.number }}"
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+concurrency:
+  group: story-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  script:
+    # new [Story] issue, OR a `/story ...` comment from an authorized user
+    if: >-
+      (github.event_name == 'issues' && startsWith(github.event.issue.title, '[Story]')) ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.issue.title, '[Story]') &&
+       startsWith(github.event.comment.body, '/story') &&
+       github.event.comment.user.type != 'Bot' &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Extract story controls from the issue
+        id: fields
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMENT_BODY: ${{ github.event_name == 'issue_comment' && github.event.comment.body || '' }}
+        run: |
+          mkdir -p build/story
+          if [ -n "$COMMENT_BODY" ]; then
+            python3 scripts/story/story.py parse-issue --body "$ISSUE_BODY" --comment "$COMMENT_BODY" > build/story/controls.json
+          else
+            python3 scripts/story/story.py parse-issue --body "$ISSUE_BODY" > build/story/controls.json
+          fi
+          python3 -c "import json; d=json.load(open('build/story/controls.json'))['form']; [print(f'{k}={v}' if v is not None else f'{k}=') for k, v in d.items()]" > build/story/controls.env
+          python3 -c "import json, pathlib; n=json.load(open('build/story/controls.json'))['note']; pathlib.Path('build/story/note.txt').write_text(n or '')"
+          cat build/story/controls.env
+
+      - name: Analyze repo and write the storyboard
+        id: analyze
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STORY_PROVIDER: ${{ vars.STORY_PROVIDER }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -a && . build/story/controls.env && set +a
+          ARGS=(--repo "$repo_url" --tone "$tone" --pace "$pace" --length "$length" --aspect "$aspect"
+                --music-mood "$music_mood" --quality "$quality" --fps "$fps" --format "$format"
+                --out build/story)
+          if [ -n "$music_url" ]; then ARGS+=(--music-url "$music_url"); fi
+          NOTE=$(cat build/story/note.txt)
+          if [ -n "$NOTE" ]; then ARGS+=(--note "$NOTE"); fi
+          python3 scripts/story/story.py analyze "${ARGS[@]}" | tee build/story/analyze.log
+
+      - name: Post storyboard comment
+        id: comment
+        if: steps.analyze.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMENT_ID=$(python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/storyboard.md)
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Report analysis problems politely
+        if: steps.analyze.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "😕 I couldn't write the story for this repo:"; echo; \
+            echo '```'; tail -n 4 build/story/analyze.log; echo '```'; \
+            echo; echo "Check the repo link is **public** and try again, or edit the issue and comment \`/story\`."; \
+          } > build/story/error.md
+          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md || true
+          exit 1
+
+      - uses: actions/upload-artifact@v4
+        if: steps.analyze.outcome == 'success'
+        with:
+          name: story-output
+          path: build/story/
+          retention-days: 7
+          if-no-files-found: error

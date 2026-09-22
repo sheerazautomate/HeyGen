@@ -5,6 +5,23 @@ Private, unlimited version of the HyperFrames pilot — same interface, pro powe
 **Original pilot was:** public, 24KB, 30s max, 1920px, 2/day, offline only, standard quality.
 **Personal pro is:** private, 10MB, 10min, 4096px (4K), unlimited (1000/day soft), network enabled, high quality, 60fps, MP4/WebM/MOV, external assets, variables.
 
+> **✦ NEW — Story mode:** paste a **repo link**, get a script written for you → [docs/STORY_MODE.md](docs/STORY_MODE.md)
+
+## Story mode — repo link in, launch video out
+
+Don't want to author HTML? **Story mode** writes the script for you:
+
+1. **Open a story issue** from the studio ("Generate from a repo") or GitHub → *Generate a video from a repo link*. Paste any **public** repo URL. Pick tone, pace, length, aspect, music, quality, fps, format.
+2. **Review the storyboard** posted back on the issue: scene-by-scene copy, palette extracted from your project's own styles, music choice, real commands/stats/features from your repo.
+3. **Approve it**: reply `/render` (or steer: `/render tone:playful length:45 music:lofi`, `/render s2.heading:"New headline"`). Full-throttle render → private release with the same quality/fps/format knobs.
+
+- **Free-of-cost writing**: works with free-tier LLM providers (Groq/Gemini/Cerebras/OpenRouter — one secret, no billing), local Ollama, or the built-in **offline generator** (zero keys, never fails). GitHub Models was retired 2026-07-30; no provider is hardcoded.
+- **No dead space**: full-bleed layered backgrounds, grid completeness rules (3/4/6 cards), per-slot character budgets, palette + contrast from the repo's own CSS.
+- **Music**: synthesized per mood (royalty-free by construction) or your own `https://` track.
+- **Local one-shot**: `python3 scripts/personal_render.py --story https://github.com/owner/repo --tone hype --fps 60`
+
+Full guide: [docs/STORY_MODE.md](docs/STORY_MODE.md)
+
 ## What changed? (Pilot → Personal Pro)
 
 | Feature | Pilot | Personal Pro |

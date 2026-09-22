@@ -1128,6 +1128,79 @@ footer > a:last-child {
     right: -25px;
   }
 }
+/* === Story mode === */
+.story-card {
+  max-width: 980px;
+  margin: 0 auto 56px;
+  border-color: #d8e2b8;
+  background: linear-gradient(160deg, #ffffff 0%, #f6f8ec 100%);
+}
+.story-card code {
+  background: #eef2dc;
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.story-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0 8px;
+}
+.story-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0;
+}
+.story-grid label .muted {
+  font-weight: 400;
+}
+.story-grid select,
+.story-grid input {
+  border: 1px solid #dfe4d6;
+  border-radius: 7px;
+  background: #fff;
+  padding: 10px 12px;
+  width: 100%;
+  font-size: 12px;
+  color: var(--ink);
+}
+.story-grid input:focus-visible,
+.story-grid select:focus-visible {
+  outline: 2px solid #b9d24e;
+  outline-offset: 1px;
+}
+.story-grid .story-full {
+  grid-column: 1 / -1;
+}
+.story-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 14px 0 6px;
+}
+.story-actions .button {
+  text-decoration: none;
+}
+.story-actions a.button[href^="#"],
+.story-actions a.button:not([href]) {
+  opacity: 0.55;
+  pointer-events: none;
+}
+@media (max-width: 900px) {
+  .story-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .story-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* === Personal Pro Extensions === */
 .pro-controls {
   display: grid;

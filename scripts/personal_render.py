@@ -23,7 +23,7 @@ def build_image():
     print("Building pro renderer image (4 CPUs, 8GB, network enabled)...")
     subprocess.run(["docker", "build", "-t", "pilot-renderer", str(ROOT / "scripts/pilot")], check=True)
 
-def render(html_path, quality, fps, fmt, variables, output_path):
+def render(html_path, quality, fps, fmt, variables, output_path, music_files=None):
     html_path = Path(html_path).resolve()
     if not html_path.exists():
         print(f"HTML file not found: {html_path}", file=sys.stderr)
@@ -40,6 +40,11 @@ def render(html_path, quality, fps, fmt, variables, output_path):
         for f in d.glob("*"):
             if f.is_file():
                 f.unlink()
+
+    # Story mode music (synthesized wav or downloaded custom track + mixing metadata)
+    for f in (music_files or []):
+        if f and Path(f).exists():
+            shutil.copy(f, request_dir / Path(f).name)
 
     # Copy HTML
     shutil.copy(html_path, request_dir / "index.html")
@@ -75,6 +80,12 @@ def render(html_path, quality, fps, fmt, variables, output_path):
         f"type=bind,src={request_dir / 'variables.json'},dst=/input/variables.json,readonly",
         f"type=bind,src={raw_dir},dst=/output",
     ]
+    if (request_dir / "music.wav").exists():
+        mounts.append(f"type=bind,src={request_dir / 'music.wav'},dst=/input/music.wav,readonly")
+    for f in sorted(request_dir.glob("music_src.*")):
+        mounts.append(f"type=bind,src={f},dst=/input/{f.name},readonly")
+    if (request_dir / "music.json").exists():
+        mounts.append(f"type=bind,src={request_dir / 'music.json'},dst=/input/music.json,readonly")
     mount_args = []
     for mnt in mounts:
         mount_args.extend(["--mount", mnt])
@@ -134,9 +145,67 @@ def render(html_path, quality, fps, fmt, variables, output_path):
         print("No video output found", file=sys.stderr)
         sys.exit(1)
 
+def story_flow(args, variables, out_path_hint):
+    """Local story mode: repo link -> analysis -> script -> (review) -> composition -> render."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from story.story import main as story_main
+
+    story_dir = ROOT / "build" / "story-local"
+    story_dir.mkdir(parents=True, exist_ok=True)
+
+    analyze_argv = ["analyze", "--repo", args.story,
+                    "--tone", args.tone, "--pace", args.pace, "--length", str(args.length),
+                    "--aspect", args.aspect, "--music-mood", args.music_mood,
+                    "--quality", args.quality, "--fps", str(args.fps), "--format", args.format,
+                    "--out", str(story_dir)]
+    if args.music_url:
+        analyze_argv += ["--music-url", args.music_url]
+    try:
+        story_main(analyze_argv)
+    except SystemExit as exc:  # story.py exits(2) with a friendly ::error::
+        sys.exit(exc.code)
+
+    board = (story_dir / "storyboard.md").read_text(encoding="utf-8")
+    # storyboard minus the giant details blocks, for terminal review
+    preview = board.split("### Next step")[0]
+    print("\n" + preview)
+    if not args.yes:
+        reply = input("Render this storyboard? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            print(f"Aborted. Storyboard + script kept in {story_dir}")
+            sys.exit(0)
+
+    script = json.loads((story_dir / "script.json").read_text(encoding="utf-8"))
+
+    prep_argv = ["prepare", "--packet", str(story_dir / "packet.txt"),
+                 "--comment", "", "--out", str(ROOT / "build" / "personal" / "story-request")]
+    try:
+        story_main(prep_argv)
+    except SystemExit as exc:
+        sys.exit(exc.code)
+
+    req = ROOT / "build" / "personal" / "story-request"
+    music_files = [p for p in req.glob("music*") if p.is_file()]
+    html_path = req / "index.html"
+    render_fmt = script["render"]["format"]
+    render_quality = script["render"]["quality"]
+    render_fps = script["render"]["fps"]
+    out = args.output or ROOT / f"build/personal/{script['project']['name']}-story-{render_fps}fps.{render_fmt}"
+    return html_path, render_quality, render_fps, render_fmt, out, music_files
+
+
 def main():
     parser = argparse.ArgumentParser(description="Personal pro local renderer - full throttle HyperFrames")
-    parser.add_argument("html", help="Path to composition HTML file")
+    parser.add_argument("html", nargs="?", default=None, help="Path to composition HTML file (omit when using --story)")
+    parser.add_argument("--story", metavar="REPO_URL", default=None,
+                        help="Story mode: analyze a public repo, write the script for you, then render it")
+    parser.add_argument("--tone", choices=["cinematic", "corporate", "playful", "hype", "minimal", "documentary"], default="cinematic")
+    parser.add_argument("--pace", choices=["snappy", "balanced", "slow"], default="balanced")
+    parser.add_argument("--length", type=float, default=30, help="Story mode video length in seconds")
+    parser.add_argument("--aspect", choices=["16:9", "9:16", "1:1"], default="16:9")
+    parser.add_argument("--music-mood", choices=["upbeat", "corporate", "cinematic", "lofi", "playful", "none"], default="upbeat")
+    parser.add_argument("--music-url", default=None, help="Custom https:// audio track (story mode)")
+    parser.add_argument("-y", "--yes", action="store_true", help="Skip the storyboard review prompt")
     parser.add_argument("--quality", choices=["draft", "standard", "high"], default="high", help="Render quality")
     parser.add_argument("--fps", type=int, default=30, choices=[24, 30, 60], help="FPS")
     parser.add_argument("--format", choices=["mp4", "webm", "mov"], default="mp4", help="Output format")
@@ -145,11 +214,20 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.story and not args.html:
+        parser.error("give a composition HTML file, or --story <repo-url> (see --help)")
+
     try:
         variables = json.loads(args.vars)
     except json.JSONDecodeError as e:
         print(f"Invalid --vars JSON: {e}", file=sys.stderr)
         sys.exit(1)
+
+    music_files = []
+    if args.story:
+        html, args.quality, args.fps, args.format, out, music_files = story_flow(args, variables, args.output)
+        args.html = str(html)
+        args.output = str(out)
 
     if args.output:
         out_path = args.output
@@ -163,7 +241,7 @@ def main():
     except subprocess.CalledProcessError:
         build_image()
 
-    render(args.html, args.quality, args.fps, args.format, variables, out_path)
+    render(args.html, args.quality, args.fps, args.format, variables, out_path, music_files=music_files)
 
 if __name__ == "__main__":
     main()

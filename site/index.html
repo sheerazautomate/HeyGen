@@ -84,6 +84,77 @@
             ><span>4 CPUs • 8GB • network • private release</span>
           </div>
         </div>
+
+        <!-- ================= STORY MODE ================= -->
+        <div class="section-heading" id="story">
+          <div>
+            <span class="eyebrow">NEW • STORY MODE</span>
+            <h2>You built it. <em>Now brag.</em></h2>
+          </div>
+          <span class="small muted">Paste a repo link → we write the script → you approve → we render</span>
+        </div>
+        <section class="card story-card" aria-labelledby="story-heading">
+          <div class="card-heading">
+            <h3 id="story-heading"><span class="tiny-step">✦</span> Generate from a repo</h3>
+            <span class="chip">AI script • two-phase • public repos</span>
+          </div>
+          <p class="small muted">
+            The analyzer reads your project's README, manifests, routes and styles (secrets skipped),
+            writes a scene-by-scene storyboard with copy in your project's colors, and posts it on a
+            private issue. <strong>Nothing renders until you reply <code>/render</code>.</strong>
+          </p>
+          <div class="story-grid">
+            <label class="story-full" for="st-repo">Public GitHub repo
+              <input id="st-repo" placeholder="https://github.com/owner/repo" autocomplete="off" inputmode="url" />
+            </label>
+            <label for="st-tone">Tone
+              <select id="st-tone">
+                <option>cinematic</option><option>corporate</option><option>playful</option>
+                <option>hype</option><option>minimal</option><option>documentary</option>
+              </select>
+            </label>
+            <label for="st-pace">Pace
+              <select id="st-pace"><option value="balanced">balanced (~5s/scene)</option>
+                <option value="snappy">snappy (~3.5s/scene)</option><option value="slow">slow (~7.5s/scene)</option></select>
+            </label>
+            <label for="st-length">Length
+              <select id="st-length"><option>15</option><option selected>30</option>
+                <option>45</option><option>60</option><option>90</option></select>
+            </label>
+            <label for="st-aspect">Aspect
+              <select id="st-aspect"><option value="16:9">16:9 (1920×1080)</option>
+                <option value="9:16">9:16 (1080×1920)</option><option value="1:1">1:1 (1080×1080)</option></select>
+            </label>
+            <label for="st-mood">Music
+              <select id="st-mood"><option>upbeat</option><option>corporate</option><option>cinematic</option>
+                <option>lofi</option><option>playful</option><option value="none">none</option></select>
+            </label>
+            <label for="st-quality">Quality
+              <select id="st-quality"><option>standard</option><option>high</option><option>draft</option></select>
+            </label>
+            <label for="st-fps">FPS
+              <select id="st-fps"><option>30</option><option>24</option><option>60</option></select>
+            </label>
+            <label for="st-format">Format
+              <select id="st-format"><option>mp4</option><option>webm</option><option>mov</option></select>
+            </label>
+            <label class="story-full" for="st-music-url">Custom music URL <span class="muted small">(optional, https only)</span>
+              <input id="st-music-url" placeholder="https://example.com/track.mp3" autocomplete="off" inputmode="url" />
+            </label>
+          </div>
+          <div class="story-actions">
+            <a id="st-open" class="button primary" href="#" target="_blank" rel="noopener">
+              Create story issue <span aria-hidden="true">→</span>
+            </a>
+            <p id="st-msg" class="message" role="status" hidden></p>
+          </div>
+          <p class="small muted">
+            Then in the issue: review the storyboard → reply <code>/render</code>
+            (or steer: <code>/render tone:playful length:45 music:lofi</code>,
+            <code>/render s2.heading:"New headline"</code>).
+          </p>
+        </section>
+
         <div class="section-heading">
           <div>
             <span class="eyebrow">THE PRO CREATION DESK</span>
