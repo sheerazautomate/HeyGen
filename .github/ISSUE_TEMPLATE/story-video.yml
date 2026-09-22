@@ -78,7 +78,7 @@ body:
         - cinematic
         - lofi
         - playful
-        - none
+        - no music
     validations:
       required: true
   - type: input
