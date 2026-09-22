@@ -1,0 +1,149 @@
+name: Story render (/render approval)
+run-name: "Render story #${{ github.event.issue.number }}"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+concurrency:
+  group: story-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      startsWith(github.event.issue.title, '[Story]') &&
+      startsWith(github.event.comment.body, '/render') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      ok: ${{ steps.prep.outputs.ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Find the storyboard packet
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/request build/story
+          if python3 scripts/story/story.py find-story --issue ${{ github.event.issue.number }} --out build/story/packet.txt; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No packet? Tell the human how to get one
+        if: steps.find.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "I can't find a storyboard on this issue yet. The analyzer may have failed or it's still running -" \
+            "check the comments above. To (re)generate the storyboard, comment: \`/story\`" > build/story/error.md
+          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md
+          exit 1
+
+      - name: Prepare render request from the story script
+        id: prep
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          STORY_PROVIDER: ${{ vars.STORY_PROVIDER }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if python3 scripts/story/story.py prepare \
+              --packet build/story/packet.txt \
+              --comment "$COMMENT_BODY" \
+              --out build/request 2>&1 | tee build/story/prepare.log; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bad command? Explain the syntax instead of failing silently
+        if: steps.prep.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "⚠️ I couldn't apply that \`/render\` command:"; echo; \
+            echo '```'; grep -o '::error::.*' build/story/prepare.log | sed 's/::error:://' | tail -n 3; echo '```'; \
+            echo "Valid examples:"; \
+            echo "- \`/render\`"; \
+            echo "- \`/render quality:high fps:60 format:webm\`"; \
+            echo "- \`/render tone:playful length:45\`"; \
+            echo "- \`/render s2.heading:\"New heading\"\`"; \
+            echo "Nothing was rendered."; } > build/story/error.md
+          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md
+          exit 1
+
+      - name: Post the queued-tracking comment
+        id: queued
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          meta = json.load(open("build/request/manifest.json"))
+          story = meta.get("story", {})
+          body = (
+              "<!-- hyperframes-pilot:v1 -->\n"
+              "```json\n" + json.dumps({"status": "queued", "message": "Story accepted. Preparing pro renderer."}) + "\n```\n\n"
+              f"✅ **Story approved by @{os.environ['AUTHOR']}** · engine `{story.get('engine', 'unknown')}`"
+              + (" · script regenerated with your overrides" if story.get("regenerated") else "")
+              + ("".join(f"\n- ✏️ {e}" for e in story.get("edits", [])))
+              + f"\n\n**{meta['width']}×{meta['height']}** · {meta['duration']:g}s · {meta['fps']}fps · "
+                f"{meta['quality']} · {meta['format']} · 🎵 {story.get('music', 'none')}"
+              "\n\nRendering now - this comment will update. The video lands as a private release."
+          )
+          open("build/story/queued.md", "w").write(body)
+          PY
+          COMMENT_ID=$(python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/queued.md)
+          echo "comment=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Seal the manifest with tracking info
+        env:
+          AUTHOR: ${{ github.event.comment.user.login }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<PY
+          import json
+          meta = json.load(open("build/request/manifest.json"))
+          meta.update({
+              "issue": int("${{ github.event.issue.number }}"),
+              "author": "$AUTHOR",
+              "comment": int("${{ steps.queued.outputs.comment }}"),
+              "run_id": "${{ github.run_id }}",
+              "run_url": "$RUN_URL",
+          })
+          json.dump(meta, open("build/request/manifest.json", "w"))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: steps.prep.outputs.ok == 'true'
+        with:
+          name: story-request
+          path: build/request/
+          retention-days: 7
+          if-no-files-found: error
+
+  core:
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' }}
+    permissions:
+      contents: write
+      issues: write
+    uses: ./.github/workflows/render-core.yml
+    with:
+      artifact_name: story-request
