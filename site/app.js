@@ -700,7 +700,7 @@ function init() {
           music_mood: $("#st-mood")?.value || "upbeat",
           quality: $("#st-quality")?.value || "standard",
           fps: $("#st-fps")?.value || "30",
-          format: STORY_FORMAT_LABELS[$("#st-format")?.value || "mp4"],
+          video_format: STORY_FORMAT_LABELS[$("#st-format")?.value || "mp4"],
         });
         if (musicUrl) params.set("music_url", musicUrl);
         stOpen.href = `${repoURL}/issues/new?${params}`;
