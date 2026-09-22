@@ -71,6 +71,43 @@ ffmpeg -v error -y -i "$SRC" -t ${DURATION_CAP} -c copy -movflags +faststart /ou
 
 mv /output/capped.${FORMAT} "$SRC"
 
+# ---- Story mode music mixing (optional) ----
+MUSIC_META="/input/music.json"
+MUSIC_WAV="/input/music.wav"
+if [ -f "$MUSIC_META" ]; then
+  VOL=$(python3 -c "import json; print(json.load(open('$MUSIC_META')).get('volume', 0.35))" 2>/dev/null || echo 0.35)
+else
+  VOL="0.35"
+fi
+
+# custom music needs transcode to uniform wav first
+if [ ! -f "$MUSIC_WAV" ]; then
+  for f in /input/music_src.*; do
+    if [ -f "$f" ]; then
+      echo "Transcoding custom music track..."
+      ffmpeg -v error -y -i "$f" -ar 44100 -ac 1 /tmp/music.wav && MUSIC_WAV=/tmp/music.wav || true
+    fi
+  done
+fi
+
+if [ -f "$MUSIC_WAV" ]; then
+  echo "Mixing music (volume ${VOL}) into video..."
+  AUDIO_CODEC="aac"
+  [ "$FORMAT" = "webm" ] && AUDIO_CODEC="libopus"
+  HAS_AUDIO=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$SRC" | head -n 1)
+  if [ -n "$HAS_AUDIO" ]; then
+    ffmpeg -v error -y -i "$SRC" -stream_loop -1 -i "$MUSIC_WAV" \
+      -filter_complex "[1:a]volume=${VOL},atrim=0:${DURATION_CAP},afade=t=out:st=$(python3 -c "print(max(0.0, float('${DURATION_CAP}')-2.0))" 2>/dev/null || echo 0):d=2[m];[0:a][m]amix=inputs=2:duration=first[a]" \
+      -map 0:v -map "[a]" -c:v copy -c:a ${AUDIO_CODEC} -shortest /output/mixed.${FORMAT} \
+      && mv /output/mixed.${FORMAT} "$SRC" || echo "Music mix failed, keeping video without music."
+  else
+    ffmpeg -v error -y -i "$SRC" -stream_loop -1 -i "$MUSIC_WAV" \
+      -filter_complex "[1:a]volume=${VOL},atrim=0:${DURATION_CAP},afade=t=out:st=$(python3 -c "print(max(0.0, float('${DURATION_CAP}')-2.0))" 2>/dev/null || echo 0):d=2[a]" \
+      -map 0:v -map "[a]" -c:v copy -c:a ${AUDIO_CODEC} -shortest /output/mixed.${FORMAT} \
+      && mv /output/mixed.${FORMAT} "$SRC" || echo "Music mix failed, keeping video without music."
+  fi
+fi
+
 # If format not mp4, also create mp4 fallback for gallery compatibility? Keep original but also create mp4 version for broad playback
 if [ "$FORMAT" != "mp4" ]; then
   # Create mp4 version as well for gallery

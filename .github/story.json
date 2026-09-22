@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "max_repo_mb": 150,
+  "max_clone_seconds": 120,
+  "allowed_tones": ["cinematic", "corporate", "playful", "hype", "minimal", "documentary"],
+  "allowed_paces": ["snappy", "balanced", "slow"],
+  "length_choices": [15, 30, 45, 60, 90],
+  "max_length_seconds": 600,
+  "music_moods": ["upbeat", "corporate", "cinematic", "lofi", "playful", "none"],
+  "default_provider": "auto",
+  "approval_roles": ["OWNER", "MEMBER", "COLLABORATOR"]
+}

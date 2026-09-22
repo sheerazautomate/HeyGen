@@ -1,0 +1,128 @@
+name: Generate a video from a repo link (story mode)
+description: Give us a public GitHub repo - we analyze it, write a script and storyboard, you approve, we render. Private release, full throttle.
+title: "[Story] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Story mode - you built it, now brag 🎬
+        Paste a **public GitHub repo link**. The analyzer reads the README, manifests,
+        routes, styles and examples (secrets/env files are skipped and redacted), then a
+        script writer crafts a scene-by-scene storyboard - copy, colors from your project's
+        own palette, music - and posts it here as a comment.
+        **Nothing renders until YOU reply `/render`.**
+  - type: input
+    id: repo_url
+    attributes:
+      label: Public repo URL
+      description: https://github.com/owner/repo - public only, no tokens needed.
+      placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: dropdown
+    id: tone
+    attributes:
+      label: Tone
+      description: The voice of the script and visuals.
+      options:
+        - cinematic
+        - corporate
+        - playful
+        - hype
+        - minimal
+        - documentary
+    validations:
+      required: true
+  - type: dropdown
+    id: pace
+    attributes:
+      label: Pace
+      description: snappy ~3.5s/scene · balanced ~5s · slow ~7.5s.
+      options:
+        - balanced
+        - snappy
+        - slow
+    validations:
+      required: true
+  - type: dropdown
+    id: length
+    attributes:
+      label: Length (seconds)
+      options:
+        - "30"
+        - "15"
+        - "45"
+        - "60"
+        - "90"
+    validations:
+      required: true
+  - type: dropdown
+    id: aspect
+    attributes:
+      label: Aspect
+      options:
+        - "16:9 (1920×1080)"
+        - "9:16 (1080×1920)"
+        - "1:1 (1080×1080)"
+    validations:
+      required: true
+  - type: dropdown
+    id: music_mood
+    attributes:
+      label: Music
+      description: Tracks are synthesized per mood - royalty-free by construction.
+      options:
+        - upbeat
+        - corporate
+        - cinematic
+        - lofi
+        - playful
+        - none
+    validations:
+      required: true
+  - type: input
+    id: music_url
+    attributes:
+      label: Custom music URL (optional)
+      description: https:// link to your own audio file (mp3/wav/ogg), <= 40MB. Overrides the mood.
+      placeholder: https://example.com/track.mp3
+    validations:
+      required: false
+  - type: dropdown
+    id: quality
+    attributes:
+      label: Quality
+      options:
+        - standard
+        - high
+        - draft
+    validations:
+      required: true
+  - type: dropdown
+    id: fps
+    attributes:
+      label: FPS
+      options:
+        - "30"
+        - "24"
+        - "60"
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options:
+        - mp4
+        - webm (alpha)
+        - mov (ProRes)
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Private use confirmation
+      options:
+        - label: This repo is mine (or public and OK to feature), and I understand the video is stored as a private release here.
+          required: true

@@ -29,6 +29,19 @@ if [ -f "$PWD/build/request/variables.json" ]; then
   MOUNTS+=(--mount type=bind,src="$PWD/build/request/variables.json",dst=/input/variables.json,readonly)
 fi
 
+# Story mode music: synthesized WAV or a downloaded custom track + mixing metadata
+if [ -f "$PWD/build/request/music.wav" ]; then
+  MOUNTS+=(--mount type=bind,src="$PWD/build/request/music.wav",dst=/input/music.wav,readonly)
+fi
+for f in "$PWD"/build/request/music_src.*; do
+  if [ -f "$f" ]; then
+    MOUNTS+=(--mount type=bind,src="$f",dst=/input/"$(basename "$f")",readonly)
+  fi
+done
+if [ -f "$PWD/build/request/music.json" ]; then
+  MOUNTS+=(--mount type=bind,src="$PWD/build/request/music.json",dst=/input/music.json,readonly)
+fi
+
 timeout --kill-after=30s 900s docker run --name pilot-sandbox \
   --log-driver none \
   --read-only --cap-drop ALL \

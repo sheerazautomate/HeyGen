@@ -446,7 +446,8 @@ async function refreshTracking(epoch) {
       throw new Error(
         "That link is a pull request. Please use the issue created by your video submission.",
       );
-    if (!issue.title?.startsWith("[Video]") && !issue.body?.includes("HF1."))
+    const isStory = issue.title?.startsWith("[Story]");
+    if (!isStory && !issue.title?.startsWith("[Video]") && !issue.body?.includes("HF1."))
       throw new Error(
         "That issue is not a video request. Please use the link from the video submission form.",
       );
@@ -455,7 +456,7 @@ async function refreshTracking(epoch) {
     const issueLink = $("#tracking-issue");
     if (result) result.hidden = false;
     if (titleEl) titleEl.textContent =
-      issue.title.replace(/^\[Video\]\s*/, "") || `Pro Request #${number}`;
+      issue.title.replace(/^\[(Video|Story)\]\s*/, "") || `Pro Request #${number}`;
     if (issueLink) issueLink.href = `${repoURL}/issues/${number}`;
     saveRecent(number);
     const comments = await statusComments(number);
@@ -665,6 +666,56 @@ function init() {
         message("#file-message", error.message, true);
       }
     });
+    // ---- Story mode card ----
+    const STORY_ASPECT_LABELS = {
+      "16:9": "16:9 (1920×1080)",
+      "9:16": "9:16 (1080×1920)",
+      "1:1": "1:1 (1080×1080)",
+    };
+    const STORY_FORMAT_LABELS = { mp4: "mp4", webm: "webm (alpha)", mov: "mov (ProRes)" };
+    const stOpen = $("#st-open");
+    if (stOpen) {
+      const updateStoryLink = () => {
+        const msg = $("#st-msg");
+        const repoVal = ($("#st-repo")?.value || "").trim();
+        const musicUrl = ($("#st-music-url")?.value || "").trim();
+        if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(repoVal)) {
+          stOpen.removeAttribute("href");
+          if (msg) {
+            msg.hidden = repoVal.length === 0;
+            msg.textContent = repoVal.length === 0 ? "" :
+              "Enter a full public repo URL like https://github.com/owner/repo";
+          }
+          return;
+        }
+        if (msg) msg.hidden = true;
+        const params = new URLSearchParams({
+          template: "story-video.yml",
+          title: `[Story] ${repoVal.replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "")}`,
+          repo_url: repoVal.replace(/\/$/, ""),
+          tone: $("#st-tone")?.value || "cinematic",
+          pace: $("#st-pace")?.value || "balanced",
+          length: $("#st-length")?.value || "30",
+          aspect: STORY_ASPECT_LABELS[$("#st-aspect")?.value || "16:9"],
+          music_mood: $("#st-mood")?.value || "upbeat",
+          quality: $("#st-quality")?.value || "standard",
+          fps: $("#st-fps")?.value || "30",
+          format: STORY_FORMAT_LABELS[$("#st-format")?.value || "mp4"],
+        });
+        if (musicUrl) params.set("music_url", musicUrl);
+        stOpen.href = `${repoURL}/issues/new?${params}`;
+      };
+      ["st-repo", "st-tone", "st-pace", "st-length", "st-aspect", "st-mood",
+        "st-quality", "st-fps", "st-format", "st-music-url"].forEach((id) => {
+        const el = $(`#${id}`);
+        if (el) {
+          el.addEventListener("input", updateStoryLink);
+          el.addEventListener("change", updateStoryLink);
+        }
+      });
+      updateStoryLink();
+    }
+
     const copyBtn = $("#copy-request");
     if (copyBtn) copyBtn.addEventListener("click", async () => {
       const packetEl = $("#request-packet");
