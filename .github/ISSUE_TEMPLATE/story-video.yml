@@ -110,7 +110,7 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: format
+    id: video_format
     attributes:
       label: Format
       options:
