@@ -1,48 +1,52 @@
-name: Story render (/render approval)
-run-name: "Render story #${{ github.event.issue.number }}"
+name: Story render
 
 on:
   issue_comment:
     types: [created]
 
-permissions: {}
+permissions:
+  contents: write
+  issues: write
+
 concurrency:
-  group: story-issue-${{ github.event.issue.number }}
+  group: story-render-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    if: >-
-      startsWith(github.event.issue.title, '[Story]') &&
-      startsWith(github.event.comment.body, '/render') &&
-      github.event.comment.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    if: ${{ github.event.issue && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/render') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 12
-    permissions:
-      contents: read
-      issues: write
     outputs:
       ok: ${{ steps.prep.outputs.ok }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Find the storyboard packet
-        id: find
+      - name: Only collaborators can trigger renders
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p build/request build/story
-          if python3 scripts/story/story.py find-story --issue ${{ github.event.issue.number }} --out build/story/packet.txt; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
+          set -euo pipefail
+          ROLE=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.event.comment.user.login }}/permission" --jq .permission 2>/dev/null || echo none)
+          case "$ROLE" in
+            admin|write|maintain) echo "Authorized ($ROLE)" ;;
+            *) echo "::error::@${{ github.event.comment.user.login }} is not a collaborator ($ROLE)"; exit 1 ;;
+          esac
 
-      - name: No packet? Tell the human how to get one
-        if: steps.find.outputs.found == 'false'
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Find the storyboard packet on this issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/story
+          python3 scripts/story/story.py find-story \
+            --issue ${{ github.event.issue.number }} > build/story/packet.txt
+
+      - name: No storyboard yet? Say so instead of failing silently
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -55,6 +59,9 @@ jobs:
         id: prep
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
+          # lets story/product.py read the target repo's description and topics
+          # when a /render command regenerates the script
+          GH_TOKEN: ${{ github.token }}
           STORY_PROVIDER: ${{ vars.STORY_PROVIDER }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -73,81 +80,37 @@ jobs:
           fi
 
       - name: Bad command? Explain the syntax instead of failing silently
-        if: steps.prep.outputs.ok == 'false'
+        if: steps.prep.outputs.ok != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          { echo "⚠️ I couldn't apply that \`/render\` command:"; echo; \
+          { echo "😕 I couldn't prepare that render:"; echo; \
             echo '```'; grep -o '::error::.*' build/story/prepare.log | sed 's/::error:://' | tail -n 3; echo '```'; \
-            echo "Valid examples:"; \
-            echo "- \`/render\`"; \
-            echo "- \`/render quality:high fps:60 format:webm\`"; \
-            echo "- \`/render tone:playful length:45\`"; \
-            echo "- \`/render s2.heading:\"New heading\"\`"; \
-            echo "Nothing was rendered."; } > build/story/error.md
-          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md
+            echo; echo "Try \`/render\` on its own, or see the storyboard comment for the full command list."; \
+          } > build/story/error.md
+          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md || true
           exit 1
 
-      - name: Post the queued-tracking comment
-        id: queued
+      - name: Acknowledge the render
         env:
           GH_TOKEN: ${{ github.token }}
-          AUTHOR: ${{ github.event.comment.user.login }}
         run: |
-          set -euo pipefail
-          test -f build/request/manifest.json
-          python3 - <<'PY'
-          import json, os
-          meta = json.load(open("build/request/manifest.json"))
-          story = meta.get("story") or {}
-          body = (
-              "<!-- hyperframes-pilot:v1 -->\n"
-              "```json\n" + json.dumps({"status": "queued", "message": "Story accepted. Preparing pro renderer."}) + "\n```\n\n"
-              f"✅ **Story approved by @{os.environ['AUTHOR']}** · engine `{story.get('engine', 'unknown')}`"
-              + (" · script regenerated with your overrides" if story.get("regenerated") else "")
-              + ("".join(f"\n- ✏️ {e}" for e in (story.get("edits") or [])))
-              + f"\n\n**{meta.get('width', 0)}×{meta.get('height', 0)}** · {float(meta.get('duration') or 0):g}s · {meta.get('fps', 30)}fps · "
-                f"{meta.get('quality', 'standard')} · {meta.get('format', 'mp4')} · 🎵 {story.get('music', 'none')}"
-              "\n\nRendering now - this comment will update. The video lands as a private release."
-          )
-          open("build/story/queued.md", "w").write(body)
-          PY
-          COMMENT_ID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.issue.number }}/comments" \
-            -f body="$(cat build/story/queued.md)" --jq .id)
-          echo "comment=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "🎬 Rendering now - full-throttle pipeline in the sandbox." \
+            "" "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > build/story/ack.md
+          python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/ack.md || true
 
-      - name: Seal the manifest with tracking info
-        env:
-          AUTHOR: ${{ github.event.comment.user.login }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python3 - <<PY
-          import json
-          meta = json.load(open("build/request/manifest.json"))
-          meta.update({
-              "issue": int("${{ github.event.issue.number }}"),
-              "author": "$AUTHOR",
-              "comment": int("${{ steps.queued.outputs.comment }}"),
-              "run_id": "${{ github.run_id }}",
-              "run_url": "$RUN_URL",
-          })
-          json.dump(meta, open("build/request/manifest.json", "w"))
-          PY
-
-      - uses: actions/upload-artifact@v4
-        if: steps.prep.outputs.ok == 'true'
+      - name: Upload the prepared request
+        uses: actions/upload-artifact@v4
         with:
-          name: story-request
-          path: build/request/
-          retention-days: 7
-          if-no-files-found: error
+          name: story-request-${{ github.event.issue.number }}
+          path: build/request
+          retention-days: 1
 
   core:
     needs: prepare
     if: ${{ needs.prepare.result == 'success' }}
-    permissions:
-      contents: write
-      issues: write
     uses: ./.github/workflows/render-core.yml
     with:
-      artifact_name: story-request
+      issue_number: ${{ github.event.issue.number }}
+      request_artifact: story-request-${{ github.event.issue.number }}
+    secrets: inherit
