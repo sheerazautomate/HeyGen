@@ -12,6 +12,7 @@ from collections import Counter
 from pathlib import Path
 
 from .fetch_repo import read_project_files, redact
+from .product import infer_product, is_toolchain_text
 
 STYLE_EXTS = {".css", ".scss", ".sass", ".less"}
 ROUTE_DIRS = {"pages", "app", "routes", "views", "screens", "src/pages", "src/routes", "src/app"}
@@ -283,23 +284,48 @@ def repo_stats(files):
 
 def analyze_repo(root, canonical_url, repo_name=None):
     files = list(read_project_files(root))
-    readme = parse_readme(_readme(files))
+    readme_text = _readme(files)
+    readme = parse_readme(readme_text)
     stack, man_name, man_desc = parse_manifest(files)
     palette, psource = extract_palette(files)
     display_font, mono_font = extract_fonts(files)
     routes = extract_routes(files)
     stats = repo_stats(files)
 
-    name = man_name or readme["title"] or repo_name or Path(root).name
+    if repo_name is None and canonical_url:
+        m = re.match(r"https://github\.com/[^/]+/([^/]+)", canonical_url)
+        if m:
+            repo_name = m.group(1)
+
+    # What is this product? (source-level inference; see product.py)
+    product = infer_product(root, canonical_url, readme_text, readme, stack, repo_name)
+
+    name = (product.get("display_name") or man_name or readme["title"]
+            or repo_name or Path(root).name)
     name = re.sub(r"^@[\w.-]+/", "", name)  # npm scope
     name = re.sub(r"^[/\\`:]+", "", name).strip() or repo_name or Path(root).name
-    tagline = man_desc or readme["tagline"]
+
+    # The tagline must describe the PRODUCT. A scaffolded README's first
+    # paragraph is build-tool instructions ("First, you will need to run
+    # Metro..."), so it is only used when it survives the toolchain filter.
+    tagline = ""
+    for cand in (product.get("purpose"), man_desc, readme["tagline"]):
+        if cand and not is_toolchain_text(cand):
+            tagline = cand
+            break
+
+    # README bullets are only "features" when they describe the product.
+    # A boilerplate README contributes nothing: its bullets are scaffold docs
+    # links ("Learn the Basics", "read the official Blog"), not product value.
+    features = [redact(f) for f in (product.get("product_features") or [])]
+    if not features and not product.get("readme_is_boilerplate"):
+        features = [redact(f) for f in readme["features"][:8] if not is_toolchain_text(f)]
 
     brief = {
         "name": name[:60],
         "url": canonical_url,
         "tagline": tagline[:220],
-        "features": [redact(f) for f in readme["features"][:8]],
+        "features": features[:8],
         "commands": readme["commands"][:8],
         "stack": stack[:12],
         "routes": routes,
@@ -307,24 +333,58 @@ def analyze_repo(root, canonical_url, repo_name=None):
         "palette_source": psource,
         "fonts": {"display": display_font, "mono": mono_font},
         "stats": stats,
+        "product": product,
     }
-    # compact, redacted excerpt for the LLM (never the whole repo)
-    ex = _readme(files)[:1400]
-    brief["readme_excerpt"] = redact(ex)
+    # compact, redacted excerpt for the LLM (never the whole repo).
+    # Boilerplate READMEs are withheld: feeding "run Metro" to the writer is
+    # exactly how videos end up being about the toolchain.
+    if product.get("readme_is_boilerplate"):
+        brief["readme_excerpt"] = ""
+    else:
+        brief["readme_excerpt"] = redact(readme_text[:1400])
     return brief
 
 
 def brief_for_prompt(brief):
-    """Slim dict the prompt builder serializes - keeps tokens predictable."""
-    return {
+    """Slim dict the prompt builder serializes - keeps tokens predictable.
+
+    Deliberately PRODUCT-FIRST. Repo metadata (LOC, file counts, dependency
+    lists) is only included for developer-audience projects, where devs are the
+    viewers and the stack is genuine proof. For an end-user app it is omitted
+    entirely so the writer cannot reach for "1.2k lines of code" as a selling
+    point to someone who just wants to know what the app does.
+    """
+    product = brief.get("product") or {}
+    audience = product.get("audience", "end_user")
+
+    out = {
         "name": brief["name"],
-        "tagline": brief["tagline"],
+        "what_it_is": brief["tagline"] or product.get("purpose", ""),
+        "audience": ("developers who will install it" if audience == "developer"
+                     else "the people who use this product"),
+        "platforms": product.get("platforms") or [],
+        "topics": product.get("topics") or [],
+        "capabilities_with_evidence": [
+            {"does": c["phrase"], "proven_by": c["evidence"][:2]}
+            for c in (product.get("capabilities") or [])[:10]
+        ],
+        "product_surfaces": product.get("surfaces") or brief["routes"][:6],
+        "ui_vocabulary": product.get("vocabulary") or [],
+        "domain_keywords": product.get("keywords") or [],
         "features": brief["features"][:6],
-        "commands": brief["commands"][:6],
-        "stack": brief["stack"][:10],
-        "routes": brief["routes"][:6],
-        "languages": brief["stats"]["languages"],
-        "stats": {k: v for k, v in brief["stats"].items() if k != "languages"},
         "palette_hint": brief["palette"],
-        "readme_excerpt": brief["readme_excerpt"][:1200],
     }
+    if audience == "developer":
+        out["install_commands"] = brief["commands"][:6]
+        out["stack"] = brief["stack"][:10]
+        out["repo_stats"] = {
+            "languages": brief["stats"]["languages"],
+            **{k: v for k, v in brief["stats"].items() if k != "languages"},
+        }
+    if brief.get("readme_excerpt"):
+        out["readme_excerpt"] = brief["readme_excerpt"][:1200]
+    else:
+        out["readme_note"] = ("README is framework boilerplate (scaffold instructions), "
+                              "NOT a product description - it was withheld on purpose. "
+                              "Describe the product from the evidence above.")
+    return out

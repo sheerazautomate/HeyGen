@@ -46,8 +46,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          printf '%s\n' "I can't find a storyboard on this issue yet. The analyzer may have failed or it's still running -" \
-            "check the comments above. To (re)generate the storyboard, comment: \`/story\`" > build/story/error.md
+          printf '%s\n' "I couldn't find a storyboard packet on this issue - nothing to render yet." \
+            "" "If the analyzer failed, edit the issue or comment \`/story\` to regenerate the storyboard, then \`/render\`." \
+            > build/story/error.md
           python3 scripts/story/story.py post --issue ${{ github.event.issue.number }} --body build/story/error.md
           exit 1
 
@@ -55,6 +56,9 @@ jobs:
         id: prep
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
+          # lets story/product.py read the target repo's description and topics
+          # when a /render command regenerates the script
+          GH_TOKEN: ${{ github.token }}
           STORY_PROVIDER: ${{ vars.STORY_PROVIDER }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -151,3 +155,4 @@ jobs:
     uses: ./.github/workflows/render-core.yml
     with:
       artifact_name: story-request
+    secrets: inherit

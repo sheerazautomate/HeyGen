@@ -179,7 +179,44 @@ def scene_edit_help(scene):
     return ", ".join(n for n, (k, _, _) in spec.items() if k == "text") or "—"
 
 
-def storyboard_md(script, meta, repo_url, packet):
+def product_read_md(brief):
+    """Show WHAT WE THINK THE PRODUCT IS, so a wrong read is obvious up front.
+
+    The script is only as good as this understanding - surfacing it lets the
+    reviewer catch "it thinks my app is a React Native boilerplate" before
+    spending a render on it.
+    """
+    product = (brief or {}).get("product") or {}
+    if not product:
+        return ""
+    bits = []
+    what = brief.get("tagline") or product.get("purpose") or ""
+    src = {"github:description": "GitHub description",
+           "readme:tagline": "README",
+           "github:topics": "GitHub topics"}.get(product.get("purpose_source"), "source analysis")
+    if what:
+        bits.append(f"**Understood as:** {what}  _(from {src})_")
+    else:
+        bits.append("**Understood as:** _could not determine - add a repo description on GitHub_")
+    audience = ("developers who install it" if product.get("audience") == "developer"
+                else "the people who use it")
+    line2 = [f"**Audience:** {audience}"]
+    if product.get("platforms"):
+        line2.append(f"**Platforms:** {', '.join(product['platforms'])}")
+    bits.append(" · ".join(line2))
+    caps = [c["phrase"] for c in (product.get("capabilities") or [])[:6]]
+    if caps:
+        bits.append(f"**Does:** {', '.join(caps)}")
+    if product.get("surfaces"):
+        bits.append(f"**Screens:** {', '.join(product['surfaces'][:6])}")
+    if product.get("readme_is_boilerplate"):
+        bits.append("_This repo's README is framework boilerplate, so it was ignored and the "
+                    "product was inferred from permissions, screens and interface text._")
+    body = "\n".join(f"> {b}  " for b in bits)
+    return f"\n<details><summary>🔍 What we think this product is</summary>\n\n{body}\n\n</details>\n"
+
+
+def storyboard_md(script, meta, repo_url, packet, brief=None):
     p = script["palette"]
     rows = []
     t = 0.0
@@ -196,7 +233,7 @@ def storyboard_md(script, meta, repo_url, packet):
 
 **Repo:** {repo_url} · **Engine:** {meta.get('engine', 'offline')} · **Tone:** {script['tone']} · **Pace:** {script['pace']} · **Length:** {script['duration']:g}s · **Aspect:** {script['aspect']}
 **Render:** {script['render']['quality']} · {script['render']['fps']}fps · {script['render']['format']} · **Music:** {describe(script['music']['kind'], script['music'].get('mood'), script['music'].get('url'))}
-{warn_block}
+{warn_block}{product_read_md(brief)}
 ### Palette (from {p.get('source', 'defaults')})
 | role | color |
 |---|---|
@@ -267,7 +304,7 @@ def cmd_analyze(args):
     (out / "script.json").write_text(json.dumps(script, indent=2))
     (out / "meta.json").write_text(json.dumps({**meta, "logo_url": logo_url, "repo": canonical}, indent=2))
     (out / "packet.txt").write_text(packet)
-    (out / "storyboard.md").write_text(storyboard_md(script, meta, canonical, packet))
+    (out / "storyboard.md").write_text(storyboard_md(script, meta, canonical, packet, brief))
     print(f"engine={meta['engine']}")
     print(f"scenes={len(script['scenes'])} duration={script['duration']}")
     print(f"storyboard: {out / 'storyboard.md'}")
@@ -388,7 +425,14 @@ def cmd_storyboard(args):
     script = json.loads(Path(args.script).read_text())
     meta = json.loads(Path(args.meta).read_text()) if args.meta and Path(args.meta).is_file() else {"engine": "unknown", "warnings": []}
     packet = Path(args.packet).read_text().strip() if args.packet else "(packet omitted)"
-    print(storyboard_md(script, meta, args.repo or script["project"]["url"], packet))
+    brief = None
+    brief_path = Path(args.script).with_name("brief.json")
+    if brief_path.is_file():
+        try:
+            brief = json.loads(brief_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            brief = None
+    print(storyboard_md(script, meta, args.repo or script["project"]["url"], packet, brief))
 
 
 def cmd_parse_issue(args):
