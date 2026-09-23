@@ -46,7 +46,7 @@ OpenAI-compatible providers** — one repo secret, no billing:
 
 | provider | secret | model default | free tier (2026) |
 |---|---|---|---|
-| **Groq** | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | ~1,000 req/day, no card |
+| **Groq** | `GROQ_API_KEY` | `openai/gpt-oss-120b` | ~1,000 req/day, no card |
 | **Gemini** | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | `gemini-2.0-flash` | free tier, no card |
 | **Cerebras** | `CEREBRAS_API_KEY` | `llama-3.3-70b` | ~1M tokens/day |
 | **OpenRouter** | `OPENROUTER_API_KEY` | `llama-3.3-70b-instruct:free` | 50 req/day |
