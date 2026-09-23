@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from story import analyze, commands, compose, fetch_repo, music, offline, schema
+from story import (analyze, commands, compose, fetch_repo, music, offline, product,
+                   prompts, schema)
 from story.story import encode_packet, decode_packet, storyboard_md
 
 
@@ -424,6 +425,201 @@ class IssueFormTest(unittest.TestCase):
     def test_safe_no_music_label_maps_to_internal_none(self):
         form = commands.parse_issue_form(FORM_BODY.replace("### Music\n\nlofi", "### Music\n\nno music"))
         self.assertEqual(form["music_mood"], "none")
+
+
+SCAFFOLD_README = """This is a new [**React Native**](https://reactnative.dev) project,
+bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+
+# Getting Started
+
+> **Note**: Make sure you have completed the Set Up Your Environment guide.
+
+## Step 1: Start Metro
+
+First, you will need to run **Metro**, the JavaScript build tool for React Native.
+
+```sh
+npm start
+```
+
+## Step 2: Build and run your app
+
+```sh
+npm run android
+```
+
+# Learn More
+
+- React Native Website - learn more about React Native.
+- Learn the Basics - a guided tour of the React Native basics.
+- Blog - read the latest official React Native Blog posts.
+"""
+
+ANDROID_MANIFEST = """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <application android:name=".MainApplication">
+    <activity android:name=".MainActivity" />
+  </application>
+</manifest>
+"""
+
+SETTINGS_SCREEN = """import React from 'react';
+export default function SettingsScreen() {
+  return (
+    <View>
+      <Row label="Show Coordinates" />
+      <Row label="Show Address" />
+      <Row label="Edit Watermark" />
+      <Input label="Latitude" placeholder="e.g. 31.520370" />
+    </View>
+  );
+}
+"""
+
+
+def _scaffolded_app(root):
+    """A repo whose README is framework boilerplate but which IS a real product."""
+    root = Path(root)
+    (root / "README.md").write_text(SCAFFOLD_README)
+    (root / "app.json").write_text(json.dumps({"name": "GeoProof", "displayName": "GeoProof"}))
+    (root / "package.json").write_text(json.dumps({
+        "name": "GeoProof",
+        "dependencies": {"react-native": "0.86.0",
+                         "react-native-vision-camera": "^4",
+                         "react-native-geolocation-service": "^5",
+                         "react-native-share": "^10"}}))
+    (root / "android" / "app" / "src" / "main").mkdir(parents=True)
+    (root / "android" / "app" / "src" / "main" / "AndroidManifest.xml").write_text(ANDROID_MANIFEST)
+    (root / "src" / "screens").mkdir(parents=True)
+    (root / "src" / "screens" / "SettingsScreen.tsx").write_text(SETTINGS_SCREEN)
+    (root / "src" / "screens" / "CameraScreen.tsx").write_text("export default function CameraScreen(){}")
+    (root / "src" / "screens" / "GalleryScreen.tsx").write_text("export default function GalleryScreen(){}")
+    return root
+
+
+class ProductUnderstandingTest(unittest.TestCase):
+    """The script must be about the PRODUCT, not about the repository."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        _scaffolded_app(self.tmp)
+        # no GH token in tests -> pure source-level inference
+        self.brief = analyze.analyze_repo(self.tmp, "https://github.com/acme/GeoProof")
+        self.product = self.brief["product"]
+
+    def test_scaffold_readme_detected_as_boilerplate(self):
+        self.assertTrue(product.readme_is_boilerplate(SCAFFOLD_README))
+        self.assertTrue(self.product["readme_is_boilerplate"])
+
+    def test_real_product_readme_is_not_boilerplate(self):
+        self.assertFalse(product.readme_is_boilerplate(FIXTURE_README))
+
+    def test_toolchain_never_becomes_the_tagline(self):
+        """Regression: tagline was 'First, you will need to run Metro...'."""
+        self.assertNotIn("metro", self.brief["tagline"].lower())
+        self.assertNotIn("build tool", self.brief["tagline"].lower())
+
+    def test_boilerplate_bullets_never_become_features(self):
+        """Regression: 'Learn the Basics' was rendered as a product feature."""
+        blob = " ".join(self.brief["features"]).lower()
+        for junk in ("learn the basics", "react native website", "blog", "metro"):
+            self.assertNotIn(junk, blob)
+
+    def test_capabilities_inferred_from_permissions_and_deps(self):
+        keys = {c["key"] for c in self.product["capabilities"]}
+        self.assertIn("location", keys)
+        self.assertIn("camera", keys)
+        for cap in self.product["capabilities"]:
+            self.assertTrue(cap["evidence"], f"{cap['key']} must cite evidence")
+
+    def test_surfaces_are_product_screens_not_native_shells(self):
+        surfaces = self.product["surfaces"]
+        self.assertIn("Camera", surfaces)
+        self.assertIn("Gallery", surfaces)
+        self.assertNotIn("Main", surfaces)
+        self.assertNotIn("Main Application", surfaces)
+
+    def test_ui_vocabulary_captures_the_products_own_words(self):
+        vocab = " ".join(self.product["vocabulary"]).lower()
+        self.assertIn("show coordinates", vocab)
+        self.assertIn("edit watermark", vocab)
+
+    def test_app_is_end_user_and_library_is_developer(self):
+        self.assertEqual(self.product["audience"], "end_user")
+        lib = tempfile.mkdtemp()
+        Path(lib, "README.md").write_text(FIXTURE_README)
+        Path(lib, "package.json").write_text(json.dumps({"name": "wombat"}))
+        self.assertEqual(
+            analyze.analyze_repo(lib, "https://github.com/acme/wombat")["product"]["audience"],
+            "developer")
+
+    def test_end_user_script_has_no_repo_metadata_scenes(self):
+        """No LOC counts, no dependency chips, no terminal for an end-user app."""
+        raw, _ = offline.generate_offline(self.brief, "hype", "balanced", 45, "9:16",
+                                          "upbeat", {"quality": "high", "fps": 30, "format": "mp4"})
+        script, _ = schema.normalize_script(raw)
+        templates = [s["template"] for s in script["scenes"]]
+        self.assertNotIn("stack", templates)
+        self.assertNotIn("code_showcase", templates)
+        self.assertNotIn("stats", templates)
+        blob = json.dumps(script).lower()
+        for junk in ("lines of code", "source files", "dependencies", "the repo in digits",
+                     "metro", "npm start", "boilerplate"):
+            self.assertNotIn(junk, blob, f"repo-speak leaked into the script: {junk}")
+
+    def test_end_user_script_talks_about_what_it_does(self):
+        raw, _ = offline.generate_offline(self.brief, "hype", "balanced", 45, "9:16",
+                                          "upbeat", {"quality": "high", "fps": 30, "format": "mp4"})
+        script, _ = schema.normalize_script(raw)
+        blob = json.dumps(script).lower()
+        self.assertTrue(any(w in blob for w in ("location", "gps", "camera", "coordinates")),
+                        "script never mentions what the product actually does")
+
+    def test_developer_script_keeps_stack_and_terminal(self):
+        """The fix must not strip legitimate proof from developer tools."""
+        lib = tempfile.mkdtemp()
+        Path(lib, "README.md").write_text(FIXTURE_README)
+        Path(lib, "package.json").write_text(json.dumps(
+            {"name": "wombat", "dependencies": {"chalk": "^5", "commander": "^12"}}))
+        brief = analyze.analyze_repo(lib, "https://github.com/acme/wombat")
+        raw, _ = offline.generate_offline(brief, "corporate", "balanced", 45, "16:9", "corporate", {})
+        script, _ = schema.normalize_script(raw)
+        templates = [s["template"] for s in script["scenes"]]
+        self.assertIn("code_showcase", templates)
+        self.assertIn("stack", templates)
+
+    def test_prompt_brief_hides_repo_stats_from_end_user_projects(self):
+        slim = analyze.brief_for_prompt(self.brief)
+        self.assertNotIn("repo_stats", slim)
+        self.assertNotIn("stack", slim)
+        self.assertIn("capabilities_with_evidence", slim)
+        self.assertIn("ui_vocabulary", slim)
+        self.assertIn("readme_note", slim)  # boilerplate withheld, writer told why
+
+    def test_prompt_brief_keeps_repo_stats_for_developer_projects(self):
+        lib = tempfile.mkdtemp()
+        Path(lib, "README.md").write_text(FIXTURE_README)
+        Path(lib, "package.json").write_text(json.dumps({"name": "wombat"}))
+        slim = analyze.brief_for_prompt(analyze.analyze_repo(lib, "https://github.com/acme/wombat"))
+        self.assertIn("repo_stats", slim)
+        self.assertIn("install_commands", slim)
+
+    def test_system_prompt_forbids_repo_and_toolchain_talk(self):
+        sp = prompts.system_prompt().lower()
+        self.assertIn("product", sp)
+        self.assertIn("lines of code", sp)  # named as banned
+        self.assertIn("metro", sp)          # toolchain named as banned
+        self.assertIn("may not", sp)        # truth rules present
+
+    def test_no_secrets_leak_through_product_inference(self):
+        root = Path(self.tmp)
+        (root / "src" / "screens" / "LoginScreen.tsx").write_text(
+            'const label = "Sign in"; const API_KEY = "sk-abcdefabcdefabcdefabcdef12";')
+        brief = analyze.analyze_repo(self.tmp, "https://github.com/acme/GeoProof")
+        blob = json.dumps(brief)
+        self.assertNotIn("sk-abcdefabcdef", blob)
 
 
 class PacketTest(unittest.TestCase):

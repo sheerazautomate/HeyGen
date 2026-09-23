@@ -9,6 +9,49 @@ import json
 
 from .schema import TEMPLATE_SLOTS, PACE_SCENE_SECONDS, MOODS, TONES
 
+PRODUCT_DOCTRINE = """\
+WHAT THIS VIDEO IS ABOUT (read this twice - it is the most common failure):
+- You are selling a PRODUCT to the people who would USE it. You are NOT
+  describing a source repository to people browsing GitHub.
+- Never make the codebase the subject. Banned unless the audience is explicitly
+  "developers who will install it": lines of code, file counts, dependency
+  lists, language breakdowns, "the repo in digits", "built with X and Y",
+  folder structure, commit counts, test coverage.
+- ALWAYS banned, for every audience - the build toolchain is never the story:
+  Metro, Webpack, Vite, Babel, Gradle, Xcode, CocoaPods, ESLint, Prettier,
+  the dev server, hot reload, "npm start", "bootstrapped with", "boilerplate",
+  "scaffold", "template". A viewer does not care how the app is compiled.
+- The brief may say the README is framework boilerplate. That means the
+  project's README describes a SCAFFOLD, not the product. Ignore it completely
+  and build the story from `what_it_is`, `capabilities_with_evidence`,
+  `product_surfaces`, `ui_vocabulary` and `domain_keywords` - those come from
+  the real app: its permissions, its screens, and the words in its interface.
+
+HOW TO FIND THE STORY:
+1. `what_it_is` is the single source of truth for the subject. Lead with it.
+   Example: "Coordinates TimeStamp App" is a product that stamps photos with
+   where and when they were taken - so the video is about proof of place and
+   time, NOT about React Native.
+2. `capabilities_with_evidence` is what the product can genuinely do (derived
+   from OS permissions and real native modules). Each has `proven_by`.
+3. `ui_vocabulary` are literal strings from the product's interface - the
+   user's own language ("Show Coordinates", "Edit Watermark", "Saved Tags").
+   Mine these for real, specific features. They are the best copy source.
+4. `product_surfaces` are the screens/sections a user moves through.
+5. Write the benefit, not the mechanism: "Prove you were there" beats
+   "uses ACCESS_FINE_LOCATION".
+
+TRUTH RULES (you may infer purpose; you may NOT invent features):
+- You MAY state what the product is for and who benefits, reasoning from the
+  evidence - that is the job.
+- You MAY NOT claim a concrete capability, integration, platform, metric,
+  price, award or customer that the brief does not evidence. No invented
+  numbers, no "trusted by 10,000 teams", no fake ratings, no made-up
+  percentages. If you have no real number, use no number.
+- Only name platforms listed in `platforms`. If it says Android only, never
+  imply iOS.
+"""
+
 LAYOUT_DOCTRINE = """\
 ABOUT LAYOUT (this is a motion-graphic video, not a document):
 - The canvas must NEVER have empty dead space. Every scene is a full-bleed design
@@ -20,8 +63,8 @@ ABOUT LAYOUT (this is a motion-graphic video, not a document):
   stack, commands) rather than leaving structural gaps.
 - Respect the character budgets per slot (listed per template). Short, punchy,
   specific copy beats long copy: this is screen typography, not a blog post.
-- Headlines should name the project's REAL benefits, its actual features and
-  concrete numbers from the brief - never generic marketing fog.
+- Headlines should name the product's REAL benefits and its actual features -
+  never generic marketing fog, and never the repository's statistics.
 - Every scene needs a kicker (2-4 words, ALL CAPS) except where marked optional.
 
 ABOUT COLOR:
@@ -60,10 +103,14 @@ def template_docs():
 
 
 def system_prompt():
-    return f"""You are the creative director of short, gorgeous launch videos for open-source
-projects. You receive a structured brief extracted from the project's repository
-and you write a scene-by-scene script as STRICT JSON.
+    return f"""You are the creative director of short, gorgeous PRODUCT launch videos. You
+receive a structured brief that was reverse-engineered from a project's source
+code, and you write a scene-by-scene script as STRICT JSON.
 
+Your job is to make a viewer understand and want the PRODUCT. The repository is
+merely where the evidence came from; it is never the subject of the film.
+
+{PRODUCT_DOCTRINE}
 {LAYOUT_DOCTRINE}
 
 AVAILABLE SCENE TEMPLATES (choose the backbone; use "custom" sparingly and only
@@ -97,10 +144,17 @@ RULES:
   balanced ~{PACE_SCENE_SECONDS['balanced']}s/scene, slow ~{PACE_SCENE_SECONDS['slow']}s/scene.
 - scene templates may repeat (two different features_grids is fine) but vary the
   heading/kicker.
-- Copy voice: match the tone AND the project's own writing style from the brief.
-- Use the project's real feature names, real commands, real numbers. If the brief
-  shows install/usage commands, a code_showcase scene with the actual command is
-  almost always right.
+- Copy voice: match the tone AND the product's own writing style from the brief.
+- Use the product's real feature names taken from `ui_vocabulary` and
+  `capabilities_with_evidence`. Never invent a number.
+- A `code_showcase` scene is ONLY appropriate when the audience is developers
+  AND `install_commands` exists. For an end-user product, a terminal on screen
+  is a bug, not a feature - use features_grid / feature_focus / steps instead,
+  and describe what the user taps, not what a developer types.
+- A `stats` scene must carry PRODUCT facts (things the user gets). If the only
+  numbers available are repository metrics, drop the stats scene entirely.
+- A `stack` scene is for developer-audience projects only. Never show a
+  dependency list to an end user.
 - Nothing read from the brief may carry secrets, tokens, internal hostnames, real
   customer names or personal data into the output; substitute fictional stand-ins.
 """

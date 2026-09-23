@@ -21,8 +21,9 @@ or GitHub → New issue → *Generate a video from a repo link*). The analyzer
 stack, routes/screens, color palette, fonts, logo. Secrets and credentials are
 skipped and anything token-shaped is redacted before it ever leaves the runner.
 A script writer then drafts the story: scene order, copy, palette, per-scene
-timing, music. The storyboard (palette table, scene table, editable slot names)
-is posted back on the issue within ~a minute.
+timing, music. The storyboard (what we understood the product to be, palette
+table, scene table, editable slot names) is posted back on the issue within
+~a minute.
 
 **Phase 2 — render.** Reply to the issue:
 
@@ -60,6 +61,46 @@ OpenAI-compatible providers** — one repo secret, no billing:
   deterministically from the repo analysis using the same template library.
   An LLM improves phrasing and scene choices; it is never a hard dependency.
   The storyboard always tells you which engine wrote it.
+
+## The video is about the PRODUCT, not about the repository
+
+A repo link is just where the evidence lives. The thing being sold is the
+product, so the analyzer works out *what this thing actually does for a person*
+before a single line of copy is written (`scripts/story/product.py`).
+
+**Why this needed solving.** A scaffolded project's README is framework
+instructions, not a pitch. GeoProof — an app that stamps photos with GPS
+coordinates and a timestamp — ships the stock React Native readme, so the old
+analyzer took "First, you will need to run **Metro**, the JavaScript build
+tool" as the product tagline and produced a video titled *"GeoProof — React
+Native Boilerplate Powered by Metro"*, with scenes for the dev server, the
+dependency list and the line count. Nothing about coordinates or time.
+
+**What the analyzer reads now**, in priority order:
+
+| signal | where it comes from | example (GeoProof) |
+|---|---|---|
+| purpose | GitHub repo **description** & topics (outside the clone) | "Coordinates TimeStamp App" |
+| capabilities | OS **permissions** + real native modules, each with evidence | `ACCESS_FINE_LOCATION` → "pinpoint GPS location" |
+| surfaces | screen/route component names | Camera, Gallery, Upload, Settings |
+| vocabulary | user-visible **UI strings**, labels, placeholders, i18n | "Show Coordinates", "Edit Watermark" |
+| audience | install commands, topics, app shell, permissions | end-user app vs developer library |
+
+- **Boilerplate READMEs are detected and withheld** from the writer entirely,
+  rather than being mistaken for the project's own words. The storyboard says
+  when this happened.
+- **Repo metadata is audience-gated.** Lines of code, file counts, dependency
+  chips and a terminal scene are proof for a **developer** tool and noise for an
+  end-user app — for the latter they are dropped from both the prompt and the
+  offline generator, so the writer can't reach for them.
+- **Inference is allowed; invention is not.** The writer may describe what the
+  product is for and who benefits, but every concrete capability must trace to
+  evidence found in the repo. No invented metrics, integrations or testimonials.
+- **The storyboard shows its work.** A *"🔍 What we think this product is"*
+  block reports the understood purpose, audience, platforms, capabilities and
+  screens, so a wrong read is obvious before you spend a render on it. If it's
+  wrong, the fastest fixes are a one-line **GitHub repo description** or
+  `/render note:"it's actually a field-survey tool for site engineers"`.
 
 ## How the script guarantees a full screen (no dead space)
 
@@ -119,9 +160,11 @@ running, otherwise the offline engine.
 ```
 scripts/story/
   fetch_repo.py   safe clone + skip-list + redaction
-  analyze.py      ProjectBrief: features, stack, routes, palette, fonts, logo, stats
+  product.py      what the PRODUCT is: purpose, capabilities+evidence, screens,
+                  UI vocabulary, audience, boilerplate detection
+  analyze.py      ProjectBrief: product view, features, stack, routes, palette, fonts
   llm.py          free-provider client (auto/offline fallback)
-  prompts.py      layout doctrine + schema contract for the LLM
+  prompts.py      product doctrine + layout doctrine + schema contract for the LLM
   offline.py      rule-based generator (zero-cost default)
   schema.py       script.json validation, clamping, palette repair
   templates.py    scene template library (the hybrid backbone)
