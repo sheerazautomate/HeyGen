@@ -132,7 +132,13 @@ def chat_json(messages, config, timeout=90, retries=3):
     }
     if config.get("json_mode"):
         body["response_format"] = {"type": "json_object"}
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        # Groq's Cloudflare edge rejects Python-urllib's default User-Agent
+        # with HTTP 403 "error code: 1010" before the key is ever checked
+        # (music.py already sends this header for the same reason).
+        "User-Agent": "hyperframes-story/1.0",
+    }
     if config.get("api_key"):
         headers["Authorization"] = f"Bearer {config['api_key']}"
 
