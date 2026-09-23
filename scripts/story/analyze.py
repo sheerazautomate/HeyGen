@@ -173,6 +173,12 @@ def parse_readme(text):
         b = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", b)
         b = re.sub(r"[*_`]", "", b).strip()
         if 6 < len(b) <= 120 and not b.lower().startswith(("http", "license")):
+            if re.search(
+                r"(?i)password|passwd|secret|api[_-]?key|credential|token\s*[:=]|"
+                r"\b[A-Z0-9_]{3,}(EMAIL|PASSWORD|SECRET|TOKEN|KEY)\b",
+                b,
+            ):
+                continue
             feats.append(b)
         if len(feats) >= 8:
             break

@@ -8,8 +8,8 @@ from github import GitHub
 
 api = GitHub()
 meta = json.loads(Path("build/request/manifest.json").read_text())
-number = int(meta["issue"])
-tag = f"video-pilot-{number}"
+number = int(meta.get("issue") or 0)
+tag = f"video-pilot-{number}" if number else f"video-story-{os.environ.get('GITHUB_RUN_ID', 'local')}"
 
 fps = meta.get("fps", 30)
 quality = meta.get("quality", "standard")
@@ -24,11 +24,13 @@ vars_note = ""
 if variables:
     vars_note = f"\nVariables: {json.dumps(variables)[:500]}\n"
 
-notes = (f"Personal pro render by @{meta['author']}.\n\n"
-         f"Request: https://github.com/{api.repo}/issues/{number}\n\n"
+author = meta.get("author") or "studio"
+issue_line = f"Request: https://github.com/{api.repo}/issues/{number}\n\n" if number else ""
+notes = (f"Personal pro render by @{author}.\n\n"
+         f"{issue_line}"
          f"Pro settings: {fmt.upper()} · {fps} fps · {quality} quality · {width} × {height} · {duration:g}s\n"
          f"{vars_note}\n"
-         f"{meta['run_url']}\n\n"
+         f"{meta.get('run_url', '')}\n\n"
          f"Private personal tool output. Full throttle HyperFrames.\n")
 
 Path("build/notes.md").write_text(notes, encoding="utf-8")
@@ -42,17 +44,21 @@ for name in ["video.mp4", "video.webm", "video.mov", "thumbnail.jpg"]:
 if not assets:
     raise RuntimeError("No media assets to publish")
 
-# No source HTML served from the site's origin; no commands built from user text.
+subprocess.run(["gh", "release", "delete", tag, "--repo", api.repo, "--yes"],
+               check=False, timeout=60)
+title = meta.get("title") or f"Story video {tag}"
 subprocess.run(["gh", "release", "create", tag, *assets, "--repo", api.repo,
-                "--target", os.environ["GITHUB_SHA"], "--title", meta["title"],
+                "--target", os.environ["GITHUB_SHA"], "--title", title,
                 "--notes-file", "build/notes.md", "--latest=false"], check=True, timeout=180)
 
-api.request(f"issues/comments/{int(meta['comment'])}", "PATCH", {"body": state_body(
-    "ready", f"Your pro video is ready! {width}x{height}, {fps}fps, {quality}, {fmt.upper()}. Watch and download in the studio.",
-    tag=tag, run_url=meta["run_url"])})
+comment = meta.get("comment")
+if comment:
+    api.request(f"issues/comments/{int(comment)}", "PATCH", {"body": state_body(
+        "ready", f"Your pro video is ready! {width}x{height}, {fps}fps, {quality}, {fmt.upper()}. Watch and download in the studio.",
+        tag=tag, run_url=meta.get("run_url"))})
 
-# Closing is convenience
-try:
-    api.request(f"issues/{number}", "PATCH", {"state": "closed", "state_reason": "completed"})
-except Exception:
-    print("Video published; the request could not be closed automatically.")
+if number:
+    try:
+        api.request(f"issues/{number}", "PATCH", {"state": "closed", "state_reason": "completed"})
+    except Exception:
+        print("Video published; the request could not be closed automatically.")

@@ -10,6 +10,10 @@ MESSAGES = {
 
 api = GitHub()
 status = os.environ["PILOT_STATUS"]
-comment = int(os.environ["PILOT_COMMENT"])
+raw = (os.environ.get("PILOT_COMMENT") or "").strip()
+if not raw or raw in ("0", "None", "none"):
+    print("No tracking comment; skip status update.")
+    raise SystemExit(0)
+comment = int(raw)
 api.request(f"issues/comments/{comment}", "PATCH", {"body": state_body(
     status, MESSAGES[status], run_url=f"https://github.com/{api.repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}")})
