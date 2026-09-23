@@ -59,7 +59,7 @@ jobs:
           path: build/request
 
       - name: Resolve tracking comment
-        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json'))['comment'])")" >> "$GITHUB_ENV"
+        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json')).get('comment') or 0)")" >> "$GITHUB_ENV"
 
       - name: Mark request as rendering
         env:
@@ -114,7 +114,7 @@ jobs:
           path: build/request
 
       - name: Resolve tracking comment
-        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json'))['comment'])")" >> "$GITHUB_ENV"
+        run: echo "PILOT_COMMENT=$(python3 -c "import json; print(json.load(open('build/request/manifest.json')).get('comment') or 0)")" >> "$GITHUB_ENV"
 
       - name: Mark request as failed
         env:
